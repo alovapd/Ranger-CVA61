@@ -1,0 +1,131 @@
+# Naval Navigation Deck Log System - Git Ignore Rules
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+out/
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Windows specific
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output
+
+# Cache files
+.eslintcache
+.prettierignore
+.stylelintcache
+.npm
+.cache/
+cache/
+.parcel-cache
+
+# Temporary files
+.tmp/
+temp/
+tmp/
+*.tmp
+*.bak
+*.backup
+*.old
+
+# Service Worker and PWA
+sw-debug.js
+.netlify
+
+# Naval Navigation App Specific
+# User navigation data (keep private)
+user-navigation-logs/
+personal-coordinates/
+private-exports/
+local-bookmarks/
+navigation-backups/
+
+# Application data exports
+exports/personal/
+exports/private/
+backups/user/
+user-data/
+
+# Local configuration overrides
+config.local.js
+settings.local.json
+local-settings/
+
+# Development and testing
+test-data/navigation-logs/
+sample-data/private/
+dev-logs/
+
+# Map tile cache (if offline caching added)
+tiles/cache/
+map-cache/
+
+# Generated files
+icons/generated/
+screenshots/temp/
+
+# Analytics and tracking (if added)
+analytics/
+tracking/
+
+# Archive files (unless intentionally committed)
+*.zip
+*.tar.gz
+*.rar
+*.7z
