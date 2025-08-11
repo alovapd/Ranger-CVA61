@@ -1,595 +1,341 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="default">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Naval Navigation Deck Log System</title>
-    <meta name="description" content="USS Ranger CVA-61 Naval Navigation Deck Log System - Interactive navigation logging with mapping and coordinate tracking">
-    <meta name="keywords" content="naval navigation, deck log, USS Ranger, maritime navigation, coordinate tracking">
-    
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Main Styles -->
-    <link rel="stylesheet" href="css/styles.css">
+    <title>Naval Navigation Deck Log System - USS Ranger CVA-61</title>
     
     <!-- PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1a365d">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#1f2937">
     
-    <!-- Favicons -->
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    
+    <!-- Meta Tags for SEO and Social -->
+    <meta name="description" content="Professional maritime navigation logging system for USS Ranger CVA-61, featuring interactive mapping, coordinate tracking, and historical data visualization.">
+    <meta name="keywords" content="naval navigation, maritime, USS Ranger, navigation log, coordinates, mapping">
+    <meta name="author" content="Naval Navigation System">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Naval Navigation Deck Log System">
+    <meta property="og:description" content="Professional maritime navigation logging system for USS Ranger CVA-61">
+    <meta property="og:image" content="./assets/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Naval Navigation Deck Log System">
+    <meta property="twitter:description" content="Professional maritime navigation logging system for USS Ranger CVA-61">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="./css/styles.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <div class="commission-info">
-                    <span class="commission-text">Commissioned August 1957</span>
-                </div>
-                <div class="header-title">
-                    <h1>🚢 USS Ranger CVA-61 Navigation Log</h1>
-                </div>
-                <div class="decommission-info">
-                    <span class="decommission-text">Decommissioned July 1993</span>
-                </div>
-            </div>
-            <div class="version-wrap">
-                <span class="version-badge">Version: <span id="appVersion">v0.4.3</span></span>
-            </div>
-        </div>
-
-        <div class="main-content">
-            <!-- Navigation Entry Panel -->
-            <div class="panel">
-                <h2>📋 Deck Log Entry</h2>
-                <div id="alert-container"></div>
-                
-                <form id="logForm">
-                    <input type="hidden" id="editId">
-                    
-                    <!-- Success Message Box -->
-                    <div id="successMessage" class="success-message" style="display: none;">
-                        <div class="success-content">
-                            <span class="success-icon">✅</span>
-                            <span class="success-text"></span>
-                        </div>
-                    </div>
-                    
-                    <div class="vessel-info">
-                        <div class="vessel-info-grid">
-                            <div class="form-group">
-                                <label for="logDate">Date</label>
-                                <input type="date" id="logDate" required data-tooltip="Date of navigation entry">
-                            </div>
-                            <div class="form-group">
-                                <label for="dayOfWeek">Day</label>
-                                <input type="text" id="dayOfWeek" readonly style="background: #f8fafc; color: #4a5568;" data-tooltip="Day of week (auto-calculated)">
-                            </div>
-                        </div>
-                        
-                        <!-- Last Entry Display -->
-                        <div class="last-entry-container">
-                            <label class="last-entry-label">Last Entry</label>
-                            <div id="lastEntryDisplay" class="last-entry-display">
-                                <span class="no-entries">No entries yet</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="position-grid">
-                        <div class="form-group">
-                            <label for="positionTime">Time</label>
-                            <select id="positionTime" required class="coordinate-input time-select" data-tooltip="Time of position fix">
-                                <option value="08:00">0800</option>
-                                <option value="12:00">1200</option>
-                                <option value="20:00">2000</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Latitude inputs -->
-                        <div class="form-group">
-                            <label>Latitude</label>
-                            <div class="coordinate-inputs">
-                                <input type="text" id="latDegrees" placeholder="20" class="coordinate-input" required pattern="[0-9]*" maxlength="2" data-tooltip="Latitude degrees (0-90)">
-                                <span class="coord-separator">°</span>
-                                <input type="text" id="latMinutes" placeholder="56.1" class="coordinate-input" required pattern="[0-9]*\.?[0-9]*" maxlength="5" data-tooltip="Latitude minutes (0-59.999)">
-                                <span class="coord-separator">'</span>
-                                <select id="latDirection" required class="coordinate-input direction-select" data-tooltip="Latitude direction (N/S)">
-                                    <option value="N">N</option>
-                                    <option value="S">S</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <!-- Longitude inputs -->
-                        <div class="form-group">
-                            <label>Longitude</label>
-                            <div class="coordinate-inputs">
-                                <input type="text" id="lonDegrees" placeholder="158" class="coordinate-input" required pattern="[0-9]*" maxlength="3" data-tooltip="Longitude degrees (0-180)">
-                                <span class="coord-separator">°</span>
-                                <input type="text" id="lonMinutes" placeholder="03.0" class="coordinate-input" required pattern="[0-9]*\.?[0-9]*" maxlength="5" data-tooltip="Longitude minutes (0-59.999)">
-                                <span class="coord-separator">'</span>
-                                <select id="lonDirection" required class="coordinate-input direction-select" data-tooltip="Longitude direction (E/W)">
-                                    <option value="W">W</option>
-                                    <option value="E">E</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="remarks">Remarks</label>
-                        <textarea id="remarks" rows="2" placeholder="Additional navigation remarks..." data-tooltip="Optional navigation remarks and observations"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="associatedUrl">Associated URL</label>
-                        <input type="url" id="associatedUrl" placeholder="https://example.com (optional)" style="font-family: 'Courier New', monospace;" data-tooltip="Optional URL for related documentation">
-                    </div>
-
-                    <div style="display: flex; gap: 10px; margin-top: 20px;">
-                        <button type="submit" class="btn btn-primary" id="submitBtn" data-tooltip="Save navigation entry (Ctrl+S)">
-                            ➕ Add Log Entry
-                        </button>
-                        <button type="button" class="btn btn-secondary" id="cancelBtn" style="display: none;" onclick="cancelEdit()" data-tooltip="Cancel editing (Esc)">
-                            ❌ Cancel
-                        </button>
-                    </div>
-                </form>
-            </div>
-
-            <!-- Map Controls Panel -->
-            <div class="panel">
-                <h2>🗺️ Navigation Plot</h2>
-                
-                <div class="map-controls">
-                    <div class="date-range-controls">
-                        <label for="startDate" style="font-size: 11px; margin-bottom: 4px;">Start Date</label>
-                        <input type="date" id="startDate" class="date-range-input" data-tooltip="Filter start date">
-                    </div>
-                    <div class="date-range-controls">
-                        <label for="endDate" style="font-size: 11px; margin-bottom: 4px;">End Date</label>
-                        <input type="date" id="endDate" class="date-range-input" data-tooltip="Filter end date">
-                    </div>
-                    <button class="btn btn-secondary" onclick="plotNavigationTrack()" data-tooltip="Plot navigation track on map (Ctrl+M)">
-                        🎯 Plot Track
-                    </button>
-                    <button class="btn btn-secondary" onclick="clearMap()" data-tooltip="Clear map plots (Ctrl+Shift+M)">
-                        🧹 Clear Plot
-                    </button>
-                </div>
-
-                <div style="display: flex; gap: 15px; align-items: center; margin-top: 10px;">
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" id="showTrackLine" checked>
-                        <span style="font-size: 12px;">Show Track Line</span>
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" id="showFixNumbers" checked>
-                        <span style="font-size: 12px;">Show Plot Numbers</span>
-                    </label>
-                    <button class="btn btn-secondary btn-small" onclick="findPlotOnMap()" title="Find and highlight a specific plot number (Ctrl+F)" data-tooltip="Find specific plot number">
-                        🔍 Find Plot
-                    </button>
-                </div>
-
-                <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
-
-                <h3 style="color: #1a365d; font-size: 1.1em; margin-bottom: 15px;">💾 Data Management</h3>
-                
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <button class="btn btn-primary" onclick="exportToJSON()" title="Download navigation data as JSON file (Ctrl+E)" data-tooltip="Export all data to JSON file">
-                        📥 Save Data (JSON)
-                    </button>
-                    <button class="btn btn-secondary" onclick="importFromJSON()" title="Load navigation data from JSON file (Ctrl+I)" data-tooltip="Import data from JSON file">
-                        📤 Load Data (JSON)
-                    </button>
-                    <button class="btn btn-secondary" onclick="exportToCSV()" title="Export to CSV for spreadsheet use (Ctrl+Shift+E)" data-tooltip="Export to CSV for spreadsheets">
-                        📊 Export CSV
-                    </button>
-                    <button class="btn btn-secondary" onclick="exportToKML()" title="Export to KML for Google Earth integration" data-tooltip="Export navigation track for Google Earth">
-                        🌍 Export KML
-                    </button>
-                </div>
-
-                <div style="margin-top: 15px; padding: 10px; background: #f8fafc; border-radius: 6px; font-size: 11px; color: #4a5568;">
-                    <strong>💡 Auto-Save:</strong> Data automatically saves to your browser. Use Save/Load for permanent file storage.
-                </div>
-
-                <!-- Theme and Settings Controls -->
-                <div class="system-controls" style="margin-top: 15px; padding: 12px; background: #f1f5f9; border-radius: 6px; border: 1px solid #e2e8f0;">
-                    <div style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
-                        <span style="font-size: 11px; font-weight: 600; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px;">⚙️ System Controls</span>
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-small system-btn" id="themeBtn" onclick="showThemeSelector()" title="Change application theme" data-tooltip="Switch between light/dark themes">
-                                🎨 Theme
-                            </button>
-                            <button class="btn btn-secondary btn-small system-btn" id="settingsBtn" onclick="showSettings()" title="Open application settings" data-tooltip="Configure application preferences">
-                                ⚙️ Settings
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Navigation Log Table -->
-        <div class="panel" style="grid-column: span 2;">
-            <h2>📊 Navigation Log Records</h2>
-            <div id="logTableContainer" class="table-scroll-container">
-                <!-- Table will be generated here -->
-            </div>
-        </div>
-
-        <!-- Map Container -->
-        <div class="panel map-container" style="grid-column: span 2;">
-            <h2>🗺️ Interactive Navigation Chart</h2>
-            
-            <!-- Map Measurement Controls -->
-            <div class="map-measurement-controls">
-                <button class="btn btn-secondary" id="measureDistanceBtn" onclick="toggleDistanceMeasurement()" title="Click to measure distances between two points (Ctrl+Shift+D)" data-tooltip="Measure distance between two points">
-                    📏 Measure Distance
-                </button>
-                <button class="btn btn-secondary" id="clearMeasurementsBtn" onclick="clearAllMeasurements()" title="Clear all distance measurements" data-tooltip="Clear all measurements">
-                    🧹 Clear Measurements
-                </button>
-                <div id="measurementStatus" class="measurement-status">
-                    Click "Measure Distance" then click two points on the map
-                </div>
-            </div>
-            
-            <div id="map"></div>
-            
-            <!-- Source Footer under map -->
-            <div class="source-footer">
-                <p class="source-text">
-                    <strong>Source:</strong> 
-                    <a href="https://www.archives.gov/research/military/logbooks/navy-online" target="_blank" class="source-link">
-                        National Archives - Ranger (CV/CVA-61) Navy Logbooks
-                    </a>
-                </p>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>⚓ Naval Navigation System</h2>
+            <p>USS Ranger CVA-61 • Initializing Navigation Systems...</p>
+            <div class="loading-progress">
+                <div class="loading-bar"></div>
             </div>
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="app-footer">
-        <div class="footer-content">
-            <div class="footer-section">
-                <h4>📚 Data Source</h4>
-                <p>
-                    <a href="https://www.archives.gov/research/military/logbooks/navy-online" target="_blank" class="footer-link">
-                        National Archives - USS Ranger (CV/CVA-61) Navy Logbooks
-                    </a>
-                </p>
-            </div>
-            <div class="footer-section">
-                <h4>🚢 About USS Ranger CVA-61</h4>
-                <p>Forestal-class aircraft carrier commissioned 1957-1993. This navigation log system reconstructs historical voyage data for educational and historical research purposes.</p>
-            </div>
-            <div class="footer-section">
-                <h4>⚓ Navigation System</h4>
-                <p>Professional maritime navigation log with interactive plotting, coordinate tracking, route analysis, and distance-to-land calculations for safe navigation.</p>
-            </div>
+    <!-- Error Display -->
+    <div id="error-display" class="error-display" style="display: none;">
+        <div class="error-content">
+            <h2>🚨 System Error</h2>
+            <p id="error-message">Navigation system failed to initialize. Please check console for details.</p>
+            <button onclick="location.reload()" class="btn btn-primary">Reload System</button>
         </div>
-        <div class="footer-bottom">
-            <p>&copy; 2024 Naval Navigation Deck Log System • Educational Use • Historical Data Visualization • Enhanced UX v0.4.3</p>
-        </div>
-    </footer>
+    </div>
 
-    <!-- External Dependencies -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Application Modules - Load in dependency order -->
-    <script src="js/config.js"></script>
-    <script src="data/landmass.js"></script>
-    <script src="js/core/data-manager.js"></script>
-    <!-- Performance monitor removed for improved performance -->
-    <script src="js/core/storage.js"></script>
-    <script src="js/ui/alerts.js"></script>
-    <script src="js/navigation/coordinates.js"></script>
-    <script src="js/navigation/distance.js"></script>
-    <script src="js/navigation/mapping.js"></script>
-    <script src="js/ui/forms.js"></script>
-    <script src="js/ui/tables.js"></script>
-    
-    <!-- Phase 2: Enhanced UX Modules -->
-    <script src="js/ui/themes.js"></script>
-    <script src="js/ui/shortcuts.js"></script>
-    <script src="js/core/settings.js"></script>
-    
-    <!-- Core Application -->
-    <script src="js/core/app.js"></script>
-    
-    <!-- Main Application Entry Point -->
-    <script src="js/main.js"></script>
-    
-    <!-- Service Worker for Offline Support -->
+    <!-- Main Application -->
+    <div id="app" class="app-container" style="display: none;">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="app-title">
+                        <span class="ship-icon">⚓</span>
+                        Naval Navigation Deck Log
+                        <span class="ship-designation">USS Ranger CVA-61</span>
+                    </h1>
+                </div>
+                <div class="header-right">
+                    <div class="status-indicator" id="system-status">
+                        <span class="status-dot online"></span>
+                        <span class="status-text">System Online</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Alert Container -->
+        <div id="alert-container" class="alert-container"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Navigation Panel -->
+            <section class="panel navigation-panel">
+                <div class="panel-header">
+                    <h3>🧭 Navigation Plot</h3>
+                </div>
+                <div class="panel-content">
+                    <!-- Map Container -->
+                    <div id="map" class="map-container"></div>
+                    
+                    <!-- Plot Controls -->
+                    <div class="plot-controls">
+                        <div class="date-range-container">
+                            <h4>📅 Plot Date Range</h4>
+                            <div class="date-inputs">
+                                <div class="input-group">
+                                    <label for="plot-start-date">From:</label>
+                                    <input type="date" id="plot-start-date" class="form-control date-input">
+                                </div>
+                                <div class="input-group">
+                                    <label for="plot-end-date">To:</label>
+                                    <input type="date" id="plot-end-date" class="form-control date-input">
+                                </div>
+                            </div>
+                            <div class="plot-buttons">
+                                <button id="plot-track-btn" class="btn btn-primary">🗺️ Plot Track</button>
+                                <button id="plot-all-btn" class="btn btn-secondary">📍 Plot All Data</button>
+                                <button id="clear-track-btn" class="btn btn-outline">🧹 Clear Track</button>
+                            </div>
+                        </div>
+                        
+                        <!-- System Controls -->
+                        <div class="system-controls">
+                            <h4>⚙️ System Controls</h4>
+                            <div class="control-buttons">
+                                <button id="theme-btn" class="btn btn-outline">🎨 Theme</button>
+                                <button id="settings-btn" class="btn btn-outline">⚙️ Settings</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Management Panel -->
+            <section class="panel data-panel">
+                <div class="panel-header">
+                    <h3>📊 Navigation Data</h3>
+                    <div class="panel-stats">
+                        <span id="data-count" data-stat="totalEntries">0 entries</span>
+                    </div>
+                </div>
+                
+                <!-- Data Controls -->
+                <div class="data-controls">
+                    <div class="control-group">
+                        <button id="add-entry-btn" class="btn btn-primary">➕ Add Entry</button>
+                        <button id="import-data-btn" class="btn btn-secondary">📥 Import Data</button>
+                        <button id="export-data-btn" class="btn btn-outline">📤 Export Data</button>
+                    </div>
+                    
+                    <!-- Search and Filter -->
+                    <div class="search-controls">
+                        <input type="text" id="search-input" class="form-control" placeholder="🔍 Search navigation entries...">
+                        <select id="filter-importance" class="form-control">
+                            <option value="all">All Entries</option>
+                            <option value="important">⭐ Important Only</option>
+                            <option value="normal">Standard Entries</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Data Table Container -->
+                <div class="table-container">
+                    <div id="navigation-table" class="navigation-table">
+                        <!-- Table will be populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Entry Form Modal -->
+        <div id="entry-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Add Navigation Entry</h3>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="navigation-form" class="navigation-form">
+                        <!-- Form fields will be populated by JavaScript -->
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>⚙️ System Settings</h3>
+                    <button class="modal-close" id="settings-close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="settings-content">
+                        <!-- Settings will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Input (Hidden) -->
+        <input type="file" id="file-input" accept=".json,.csv" style="display: none;">
+    </div>
+
+    <!-- JavaScript Libraries -->
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin=""></script>
+
+    <!-- Application JavaScript - NO MODULES, TRADITIONAL LOADING -->
     <script>
+        // Global error handler
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e);
+            showInitializationError('JavaScript error: ' + e.message);
+        });
+
+        // Show initialization error
+        function showInitializationError(message) {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-display').style.display = 'flex';
+        }
+
+        // Hide loading screen and show app
+        function showApplication() {
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('error-display').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+        }
+
+        // Initialize loading progress
+        let loadingProgress = 0;
+        const progressBar = document.querySelector('.loading-bar');
+        
+        function updateProgress(percent, message) {
+            loadingProgress = Math.min(percent, 100);
+            if (progressBar) {
+                progressBar.style.width = loadingProgress + '%';
+            }
+            if (message) {
+                const loadingText = document.querySelector('.loading-content p');
+                if (loadingText) {
+                    loadingText.textContent = message;
+                }
+            }
+        }
+
+        // Start loading
+        updateProgress(10, 'Loading configuration...');
+    </script>
+
+    <!-- Load Configuration First -->
+    <script src="./js/config.js"></script>
+    <script>updateProgress(20, 'Loading core modules...');</script>
+
+    <!-- Core Modules -->
+    <script src="./js/core/data-manager.js"></script>
+    <script src="./js/core/storage.js"></script>
+    <script src="./js/core/settings.js"></script>
+    <script>updateProgress(40, 'Loading UI components...');</script>
+
+    <!-- UI Modules -->
+    <script src="./js/ui/alerts.js"></script>
+    <script src="./js/ui/forms.js"></script>
+    <script src="./js/ui/tables.js"></script>
+    <script src="./js/ui/themes.js"></script>
+    <script src="./js/ui/shortcuts.js"></script>
+    <script>updateProgress(60, 'Loading navigation systems...');</script>
+
+    <!-- Navigation Modules -->
+    <script src="./js/navigation/coordinates.js"></script>
+    <script src="./js/navigation/distance.js"></script>
+    <script src="./js/navigation/mapping.js"></script>
+    <script>updateProgress(80, 'Loading application data...');</script>
+
+    <!-- Data -->
+    <script src="./data/landmass.js"></script>
+    <script>updateProgress(90, 'Initializing application...');</script>
+
+    <!-- Main Application (Load Last) -->
+    <script src="./js/core/app.js"></script>
+
+    <!-- Application Initialization -->
+    <script>
+        // Wait for DOM and all scripts to load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateProgress(95, 'Starting navigation system...');
+            
+            // Small delay to ensure everything is loaded
+            setTimeout(async function() {
+                try {
+                    // Initialize the application
+                    if (typeof NavalNavigationApp === 'undefined') {
+                        throw new Error('NavalNavigationApp class not found');
+                    }
+                    
+                    updateProgress(100, 'System ready!');
+                    
+                    // Show application
+                    setTimeout(showApplication, 500);
+                    
+                } catch (error) {
+                    console.error('Application initialization failed:', error);
+                    showInitializationError('Failed to initialize: ' + error.message);
+                }
+            }, 100);
+        });
+
+        // Service Worker Registration (PWA)
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then((registration) => {
+            window.addEventListener('load', function() {
+                const swPath = window.location.pathname.endsWith('/') 
+                    ? window.location.pathname + 'service-worker.js'
+                    : window.location.pathname + '/service-worker.js';
+                    
+                navigator.serviceWorker.register(swPath)
+                    .then(function(registration) {
                         console.log('SW registered: ', registration);
                     })
-                    .catch((registrationError) => {
+                    .catch(function(registrationError) {
                         console.log('SW registration failed: ', registrationError);
                     });
             });
         }
     </script>
-    
-    <!-- Phase 2 Enhanced Initialization (Performance Monitor removed) -->
+
+    <!-- Add Clear Track Button Functionality -->
     <script>
-        // Enhanced application initialization with Phase 2 features
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('[Phase2] Enhanced UX initialization starting...');
-            
-            // Enable enhanced tooltips if supported
-            if (CSS.supports('backdrop-filter', 'blur(5px)')) {
-                document.body.classList.add('enhanced-tooltips');
-                console.log('[Phase2] Enhanced tooltips enabled');
-            }
-            
-            // Setup theme system detection
-            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                console.log('[Phase2] Dark mode preference detected');
-            }
-            
-            // Add subtle loading animation
-            const container = document.querySelector('.container');
-            if (container) {
-                container.style.opacity = '0';
-                container.style.transform = 'translateY(20px)';
-                container.style.transition = 'all 0.6s ease-out';
-                
-                setTimeout(() => {
-                    container.style.opacity = '1';
-                    container.style.transform = 'translateY(0)';
-                }, 100);
-            }
-            
-            // Add keyboard shortcut hints to buttons after app loads
-            setTimeout(() => {
-                const hints = [
-                    { selector: '#submitBtn', hint: 'Ctrl+S' },
-                    { selector: 'button[onclick*="exportToJSON"]', hint: 'Ctrl+E' },
-                    { selector: 'button[onclick*="plotNavigationTrack"]', hint: 'Ctrl+M' },
-                    { selector: 'button[onclick*="clearMap"]', hint: 'Ctrl+Shift+M' },
-                    { selector: 'button[onclick*="findPlotOnMap"]', hint: 'Ctrl+F' },
-                    { selector: 'button[onclick*="importFromJSON"]', hint: 'Ctrl+I' }
-                ];
-                
-                hints.forEach(({ selector, hint }) => {
-                    const el = document.querySelector(selector);
-                    if (el && !el.innerHTML.includes('small')) {
-                        const text = el.textContent.trim();
-                        el.innerHTML = el.innerHTML.replace(text, `${text} <small style="opacity: 0.7; font-size: 10px;">(${hint})</small>`);
+            const clearTrackBtn = document.getElementById('clear-track-btn');
+            if (clearTrackBtn) {
+                clearTrackBtn.addEventListener('click', function() {
+                    if (window.navalApp && window.navalApp.mapping) {
+                        window.navalApp.mapping.clearTrack();
                     }
                 });
-                
-                console.log('[Phase2] Keyboard shortcut hints added');
-            }, 3000);
-            
-            // Add enhanced focus styles
-            const style = document.createElement('style');
-            style.textContent = `
-                /* Phase 2 Enhanced Focus Styles */
-                .btn:focus-visible {
-                    outline: 2px solid var(--color-accent, #ffd700);
-                    outline-offset: 2px;
-                    box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.2);
-                }
-                
-                input:focus-visible, select:focus-visible, textarea:focus-visible {
-                    outline: 2px solid var(--color-primary, #1a365d);
-                    outline-offset: 1px;
-                    box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.1);
-                }
-                
-                /* Enhanced loading animation */
-                .panel {
-                    animation: slideInUp 0.4s ease-out forwards;
-                    animation-delay: calc(var(--panel-index, 0) * 0.1s);
-                    opacity: 0;
-                }
-                
-                @keyframes slideInUp {
-                    from {
-                        opacity: 0;
-                        transform: translateY(30px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-            
-            // Animate panels in sequence
-            setTimeout(() => {
-                const panels = document.querySelectorAll('.panel');
-                panels.forEach((panel, index) => {
-                    panel.style.setProperty('--panel-index', index);
-                });
-            }, 500);
-            
-            // Enhanced error handling for Phase 2
-            window.addEventListener('error', function(e) {
-                console.error('[Phase2] Error detected:', e.error);
-                if (window.app && window.app.alerts) {
-                    window.app.alerts.showError('An error occurred. Enhanced features may be limited.');
-                }
-            });
-            
-            console.log('[Phase2] Enhanced UX initialization complete');
+            }
         });
-        
-        // Add Phase 2 feature detection (Performance Monitor removed)
-        window.Phase2Features = {
-            themes: typeof ThemeManager !== 'undefined',
-            shortcuts: typeof ShortcutsManager !== 'undefined',
-            settings: typeof SettingsManager !== 'undefined',
-            // performance: removed
-            dataManager: typeof NavigationDataManager !== 'undefined'
-        };
-        
-        // Log Phase 2 status after modules load
-        setTimeout(() => {
-            console.log('[Phase2] Feature status:', window.Phase2Features);
-            const enabledFeatures = Object.values(window.Phase2Features).filter(Boolean).length;
-            const totalFeatures = Object.keys(window.Phase2Features).length;
-            console.log(`[Phase2] ${enabledFeatures}/${totalFeatures} enhanced features loaded`);
-        }, 2000);
-    </script>
-
-    <!-- Global Function Definitions for Table Buttons -->
-    <script>
-        // Global wrapper functions for table button clicks
-        function toggleImportance(id) {
-            if (window.app) {
-                window.app.toggleImportance(id);
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function editNavigationLog(id) {
-            if (window.app) {
-                window.app.editNavigationLog(id);
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function deleteNavigationLog(id) {
-            if (window.app) {
-                window.app.deleteNavigationLog(id);
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function exportToJSON() {
-            if (window.app) {
-                window.app.exportToJSON();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function exportToCSV() {
-            if (window.app) {
-                window.app.exportToCSV();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function importFromJSON() {
-            if (window.app) {
-                window.app.importFromJSON();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function plotNavigationTrack() {
-            if (window.app) {
-                window.app.plotNavigationTrack();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function clearMap() {
-            if (window.app) {
-                window.app.clearMap();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function findPlotOnMap() {
-            if (window.app) {
-                window.app.findPlotOnMap();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function cancelEdit() {
-            if (window.app) {
-                window.app.cancelEdit();
-            } else {
-                console.error('App not initialized');
-            }
-        }
-
-        function exportToKML() {
-            if (window.app && window.app.storage && window.app.storage.exportKML) {
-                try {
-                    const navigationLogs = window.app.dataManager.getAllLogs();
-                    window.app.storage.exportKML(navigationLogs);
-                    
-                    const count = navigationLogs.length;
-                    const message = `${count} ${count === 1 ? 'entry' : 'entries'} exported to KML`;
-                    window.app.alerts.show(message, 'success');
-                } catch (error) {
-                    window.app.alerts.showError('KML export failed');
-                }
-            } else {
-                console.error('KML export not available');
-            }
-        }
-
-        function toggleDistanceMeasurement() {
-            if (window.app && window.app.mapping && window.app.mapping.toggleDistanceMeasurement) {
-                window.app.mapping.toggleDistanceMeasurement();
-            } else {
-                console.error('Distance measurement not available');
-            }
-        }
-
-        function clearAllMeasurements() {
-            if (window.app && window.app.mapping && window.app.mapping.clearAllMeasurements) {
-                window.app.mapping.clearAllMeasurements();
-            } else {
-                console.error('Clear measurements not available');
-            }
-        }
-
-        // FIXED: Theme and Settings functions with correct method calls
-        function showThemeSelector() {
-            if (window.themeManager) {
-                // Create a simple theme selection dialog
-                const themes = window.themeManager.getAvailableThemes();
-                const currentTheme = window.themeManager.getCurrentTheme();
-                
-                let themeOptions = themes.map(theme => 
-                    `${theme.key === currentTheme ? '✓' : '  '} ${theme.icon} ${theme.name}`
-                ).join('\n');
-                
-                const selected = prompt(`Select Theme:\n\n${themeOptions}\n\nEnter theme key (default/dark/nautical/submarine/sunset):`);
-                
-                if (selected && themes.find(t => t.key === selected)) {
-                    window.themeManager.setTheme(selected);
-                }
-            } else {
-                console.error('Theme manager not available');
-            }
-        }
-
-        function showSettings() {
-            if (window.settingsManager) {
-                window.settingsManager.show();
-            } else {
-                console.error('Settings manager not available');
-            }
-        }
     </script>
 </body>
 </html>
