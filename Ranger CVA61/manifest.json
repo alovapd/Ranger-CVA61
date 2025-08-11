@@ -1,0 +1,35 @@
+{
+  "name": "Naval Navigation Deck Log System",
+  "short_name": "USS Ranger NavLog",
+  "description": "USS Ranger CVA-61 Naval Navigation Deck Log System - Interactive navigation logging with mapping, coordinate tracking, and historical data visualization",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a365d",
+  "theme_color": "#1a365d",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["navigation", "maritime", "education", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Add Navigation Entry",
+      "short_name": "Add Entry",
+      "description": "Quickly add a new navigation log entry",
+      "url": "/?action=add"
+    },
+    {
+      "name": "View Navigation Chart",
+      "short_name": "Chart",
+      "description": "View the interactive navigation chart",
+      "url": "/?action=chart"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
+}
