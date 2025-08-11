@@ -1,537 +1,543 @@
-/**
- * Navigation Data Manager - Production Version
- * High-performance data indexing and management for large datasets
- */
+// js/core/data-manager.js - Enhanced with Date Range Support
 
-class NavigationDataManager {
-  constructor(config) {
-    this.config = config;
-    
-    // Primary data storage
-    this.navigationLogs = [];
-    
-    // Performance indexes
-    this.logsById = new Map();
-    this.logsByDate = new Map();
-    this.chronologicalIndex = [];
-    this.chronologicalDirty = true;
-    
-    // Spatial indexing for map performance
-    this.spatialGrid = new Map();
-    this.gridSize = 0.5;
-    this.spatialBounds = { minLat: 90, maxLat: -90, minLon: 180, maxLon: -180 };
-    
-    // Caching with TTL and memory management
-    this.cacheConfig = {
-      maxSize: 1000,
-      ttl: 300000,
-      cleanupInterval: 60000
-    };
-    this.cache = new Map();
-    this.cacheTimestamps = new Map();
-    
-    // Coordinate parsing cache
-    this.coordinateCache = new Map();
-    this.maxCoordinateCache = 500;
-    
-    // Performance metrics
-    this.metrics = {
-      totalLogs: 0,
-      indexUpdates: 0,
-      cacheHits: 0,
-      cacheMisses: 0,
-      memoryUsage: 0,
-      lastOperationTime: 0
-    };
-    
-    this._startCacheCleanup();
-  }
-
-  /**
-   * Get all navigation logs
-   */
-  getAllLogs() {
-    return this.navigationLogs;
-  }
-
-  /**
-   * Add a new navigation log with enhanced indexing
-   */
-  addNavigationLog(logData) {
-    const newLog = {
-      id: Date.now(),
-      entryTimestamp: Date.now(),
-      ...logData
-    };
-
-    this.navigationLogs.push(newLog);
-    this._updateIndexes(newLog);
-    this._invalidateCaches(['chronological', 'dateRange']);
-    
-    this.metrics.totalLogs++;
-    this.metrics.indexUpdates++;
-    
-    return newLog;
-  }
-
-  /**
-   * Update existing navigation log
-   */
-  updateNavigationLog(id, logData) {
-    const index = this.navigationLogs.findIndex(log => log.id === parseInt(id));
-    if (index === -1) return null;
-
-    const oldLog = this.navigationLogs[index];
-    const updatedLog = {
-      id: parseInt(id),
-      entryTimestamp: oldLog.entryTimestamp || Date.now(),
-      lastModified: Date.now(),
-      ...logData
-    };
-
-    this.navigationLogs[index] = updatedLog;
-    
-    this._removeFromIndexes(oldLog);
-    this._updateIndexes(updatedLog);
-    this._invalidateCaches(['chronological', 'dateRange']);
-    
-    this.metrics.indexUpdates++;
-    
-    return updatedLog;
-  }
-
-  /**
-   * Delete navigation log
-   */
-  deleteNavigationLog(id) {
-    const index = this.navigationLogs.findIndex(log => log.id === parseInt(id));
-    if (index === -1) return false;
-
-    const logToDelete = this.navigationLogs[index];
-    
-    this.navigationLogs.splice(index, 1);
-    this._removeFromIndexes(logToDelete);
-    this._invalidateCaches(['chronological', 'dateRange']);
-    
-    this.metrics.totalLogs--;
-    this.metrics.indexUpdates++;
-    
-    return true;
-  }
-
-  /**
-   * Fast lookup by ID using index
-   */
-  getLogById(id) {
-    const log = this.logsById.get(parseInt(id));
-    this._updateMetrics(log ? 'hit' : 'miss');
-    return log;
-  }
-
-  /**
-   * Date-based lookup with caching
-   */
-  getLogsByDate(date) {
-    const cacheKey = `date_${date}`;
-    const cached = this._getCached(cacheKey);
-    if (cached) return cached;
-    
-    const logs = this.logsByDate.get(date) || [];
-    this._setCached(cacheKey, logs, 300000);
-    
-    this._updateMetrics(logs.length > 0 ? 'hit' : 'miss');
-    return logs;
-  }
-
-  /**
-   * Date range queries with intelligent caching
-   */
-  getLogsByDateRange(startDate, endDate) {
-    const cacheKey = `dateRange_${startDate}_${endDate}`;
-    const cached = this._getCached(cacheKey);
-    if (cached) return cached;
-
-    const filteredLogs = this.navigationLogs.filter(log => 
-      log.logDate >= startDate && log.logDate <= endDate
-    );
-
-    this._setCached(cacheKey, filteredLogs, 300000);
-    this._updateMetrics('miss');
-    
-    return filteredLogs;
-  }
-
-  /**
-   * Chronological sorting with lazy evaluation
-   */
-  getChronologicalLogs() {
-    if (!this.chronologicalDirty && this.chronologicalIndex.length === this.navigationLogs.length) {
-      this._updateMetrics('hit');
-      return this.chronologicalIndex;
-    }
-
-    const cacheKey = 'chronological_all';
-    const cached = this._getCached(cacheKey);
-    if (cached && !this.chronologicalDirty) return cached;
-
-    const sortedLogs = [...this.navigationLogs].sort((a, b) =>
-      new Date(`${a.logDate}T${a.positionTime}`) - new Date(`${b.logDate}T${b.positionTime}`)
-    );
-
-    this.chronologicalIndex = sortedLogs;
-    this.chronologicalDirty = false;
-    this._setCached(cacheKey, sortedLogs, 600000);
-    this._updateMetrics('miss');
-    
-    return sortedLogs;
-  }
-
-  /**
-   * Spatial queries with optimized grid system
-   */
-  getLogsInBounds(northEast, southWest) {
-    const cacheKey = `bounds_${southWest.lat}_${southWest.lon}_${northEast.lat}_${northEast.lon}`;
-    const cached = this._getCached(cacheKey);
-    if (cached) return cached;
-
-    const logsInBounds = [];
-    
-    const minGridX = Math.floor(southWest.lon / this.gridSize);
-    const maxGridX = Math.ceil(northEast.lon / this.gridSize);
-    const minGridY = Math.floor(southWest.lat / this.gridSize);
-    const maxGridY = Math.ceil(northEast.lat / this.gridSize);
-
-    if (southWest.lat > this.spatialBounds.maxLat || northEast.lat < this.spatialBounds.minLat ||
-        southWest.lon > this.spatialBounds.maxLon || northEast.lon < this.spatialBounds.minLon) {
-      return [];
-    }
-
-    for (let x = minGridX; x <= maxGridX; x++) {
-      for (let y = minGridY; y <= maxGridY; y++) {
-        const gridKey = `${x},${y}`;
-        const cellLogs = this.spatialGrid.get(gridKey);
+class DataManager {
+    constructor(app) {
+        this.app = app;
+        this.navigationData = new Map();
+        this.nextId = 1;
+        this.isInitialized = false;
         
-        if (cellLogs) {
-          cellLogs.forEach(log => {
-            const coords = this._getCachedCoordinates(log);
-            if (coords && 
-                coords.lat >= southWest.lat && coords.lat <= northEast.lat &&
-                coords.lon >= southWest.lon && coords.lon <= northEast.lon) {
-              logsInBounds.push(log);
+        // Index for fast lookups
+        this.dateIndex = new Map();
+        this.coordinateIndex = new Map();
+        this.importanceIndex = new Set();
+    }
+
+    async initialize() {
+        try {
+            console.log('[DataManager] Initializing...');
+            
+            // Load existing data from storage
+            await this._loadStoredData();
+            
+            // Build indexes
+            this._rebuildIndexes();
+            
+            this.isInitialized = true;
+            console.log(`[DataManager] Initialized with ${this.navigationData.size} navigation entries`);
+            
+        } catch (error) {
+            console.error('[DataManager] Initialization failed:', error);
+            throw error;
+        }
+    }
+
+    async _loadStoredData() {
+        try {
+            if (this.app.storage) {
+                const storedData = await this.app.storage.loadNavigationData();
+                if (storedData && Array.isArray(storedData)) {
+                    storedData.forEach(entry => {
+                        const id = entry.id || this.nextId++;
+                        this.navigationData.set(id, { ...entry, id });
+                    });
+                    
+                    // Update next ID to avoid conflicts
+                    this.nextId = Math.max(...Array.from(this.navigationData.keys()), 0) + 1;
+                }
             }
-          });
+        } catch (error) {
+            console.warn('[DataManager] Could not load stored data:', error);
         }
-      }
     }
 
-    this._setCached(cacheKey, logsInBounds, 180000);
-    return logsInBounds;
-  }
-
-  /**
-   * Batch operations for importing large datasets
-   */
-  bulkAddLogs(logs) {
-    this.navigationLogs.push(...logs);
-    logs.forEach(log => this._updateIndexes(log, true));
-    this._invalidateCaches(['chronological', 'dateRange']);
-    
-    this.metrics.totalLogs += logs.length;
-    this.metrics.indexUpdates++;
-  }
-
-  /**
-   * Replace all data (for imports)
-   */
-  replaceAllLogs(logs) {
-    this.navigationLogs = [...logs];
-    this._rebuildAllIndexes();
-  }
-
-  /**
-   * Get performance metrics
-   */
-  getMetrics() {
-    return {
-      ...this.metrics,
-      cacheEfficiency: this.metrics.cacheHits / (this.metrics.cacheHits + this.metrics.cacheMisses) * 100,
-      indexedEntries: this.logsById.size,
-      spatialCells: this.spatialGrid.size,
-      memoryUsageEstimate: this._estimateMemoryUsage()
-    };
-  }
-
-  // Private methods
-
-  /**
-   * Update indexes with batching support
-   */
-  _updateIndexes(log, skipSpatialBounds = false) {
-    this.logsById.set(log.id, log);
-    
-    if (!this.logsByDate.has(log.logDate)) {
-      this.logsByDate.set(log.logDate, []);
-    }
-    this.logsByDate.get(log.logDate).push(log);
-    
-    const coords = this._getCachedCoordinates(log);
-    if (coords) {
-      if (!skipSpatialBounds) {
-        this._updateSpatialBounds(coords);
-      }
-      
-      const gridX = Math.floor(coords.lon / this.gridSize);
-      const gridY = Math.floor(coords.lat / this.gridSize);
-      const gridKey = `${gridX},${gridY}`;
-      
-      if (!this.spatialGrid.has(gridKey)) {
-        this.spatialGrid.set(gridKey, []);
-      }
-      this.spatialGrid.get(gridKey).push(log);
-    }
-    
-    this.chronologicalDirty = true;
-  }
-
-  /**
-   * Remove from indexes
-   */
-  _removeFromIndexes(log) {
-    this.logsById.delete(log.id);
-    
-    const dateLogs = this.logsByDate.get(log.logDate);
-    if (dateLogs) {
-      const index = dateLogs.findIndex(l => l.id === log.id);
-      if (index !== -1) {
-        dateLogs.splice(index, 1);
-        if (dateLogs.length === 0) {
-          this.logsByDate.delete(log.logDate);
+    _rebuildIndexes() {
+        // Clear existing indexes
+        this.dateIndex.clear();
+        this.coordinateIndex.clear();
+        this.importanceIndex.clear();
+        
+        // Rebuild indexes
+        for (const [id, entry] of this.navigationData) {
+            this._addToIndexes(id, entry);
         }
-      }
+        
+        console.log(`[DataManager] Rebuilt indexes for ${this.navigationData.size} entries`);
     }
-    
-    const coords = this._getCachedCoordinates(log);
-    if (coords) {
-      const gridX = Math.floor(coords.lon / this.gridSize);
-      const gridY = Math.floor(coords.lat / this.gridSize);
-      const gridKey = `${gridX},${gridY}`;
-      
-      const cellLogs = this.spatialGrid.get(gridKey);
-      if (cellLogs) {
-        const index = cellLogs.findIndex(l => l.id === log.id);
-        if (index !== -1) {
-          cellLogs.splice(index, 1);
-          if (cellLogs.length === 0) {
-            this.spatialGrid.delete(gridKey);
-          }
+
+    _addToIndexes(id, entry) {
+        // Date index
+        const date = this._parseEntryDate(entry);
+        if (date) {
+            const dateKey = this._getDateKey(date);
+            if (!this.dateIndex.has(dateKey)) {
+                this.dateIndex.set(dateKey, new Set());
+            }
+            this.dateIndex.get(dateKey).add(id);
         }
-      }
-    }
-    
-    this.chronologicalDirty = true;
-  }
-
-  /**
-   * Update spatial bounds for optimization
-   */
-  _updateSpatialBounds(coords) {
-    if (coords.lat < this.spatialBounds.minLat) this.spatialBounds.minLat = coords.lat;
-    if (coords.lat > this.spatialBounds.maxLat) this.spatialBounds.maxLat = coords.lat;
-    if (coords.lon < this.spatialBounds.minLon) this.spatialBounds.minLon = coords.lon;
-    if (coords.lon > this.spatialBounds.maxLon) this.spatialBounds.maxLon = coords.lon;
-  }
-
-  /**
-   * Rebuild all indexes from scratch
-   */
-  _rebuildAllIndexes() {
-    this.logsById.clear();
-    this.logsByDate.clear();
-    this.spatialGrid.clear();
-    this.spatialBounds = { minLat: 90, maxLat: -90, minLon: 180, maxLon: -180 };
-    this._invalidateCaches();
-    
-    this.navigationLogs.forEach(log => this._updateIndexes(log));
-    
-    this.metrics.totalLogs = this.navigationLogs.length;
-    this.metrics.indexUpdates++;
-  }
-
-  /**
-   * Enhanced coordinate caching with LRU eviction
-   */
-  _getCachedCoordinates(log) {
-    const coordKey = `${log.latitude}-${log.longitude}`;
-    
-    if (!this.coordinateCache.has(coordKey)) {
-      if (this.coordinateCache.size >= this.maxCoordinateCache) {
-        this._evictOldestCoordinates();
-      }
-      
-      const lat = this._parseCoordinate(log.latitude);
-      const lon = this._parseCoordinate(log.longitude);
-      
-      if (lat !== null && lon !== null) {
-        this.coordinateCache.set(coordKey, { lat, lon, lastUsed: Date.now() });
-      } else {
-        this.coordinateCache.set(coordKey, null);
-      }
-    } else {
-      const cached = this.coordinateCache.get(coordKey);
-      if (cached) {
-        cached.lastUsed = Date.now();
-      }
-    }
-    
-    const result = this.coordinateCache.get(coordKey);
-    return result && result.lat !== undefined ? { lat: result.lat, lon: result.lon } : result;
-  }
-
-  /**
-   * LRU eviction for coordinate cache
-   */
-  _evictOldestCoordinates() {
-    let oldestKey = null;
-    let oldestTime = Date.now();
-    
-    for (const [key, value] of this.coordinateCache.entries()) {
-      if (value && value.lastUsed < oldestTime) {
-        oldestTime = value.lastUsed;
-        oldestKey = key;
-      }
-    }
-    
-    if (oldestKey) {
-      this.coordinateCache.delete(oldestKey);
-    }
-  }
-
-  /**
-   * Parse coordinate string to decimal
-   */
-  _parseCoordinate(coordString) {
-    const match = coordString.match(/(\d+)°(\d+\.?\d*)'([NSEW])/);
-    if (!match) return null;
-
-    const degrees = parseInt(match[1], 10);
-    const minutes = parseFloat(match[2]);
-    const direction = match[3];
-
-    let decimal = degrees + (minutes / 60);
-    if (direction === 'S' || direction === 'W') {
-      decimal = -decimal;
-    }
-
-    return decimal;
-  }
-
-  /**
-   * Enhanced caching with TTL
-   */
-  _getCached(key) {
-    const timestamp = this.cacheTimestamps.get(key);
-    if (!timestamp || Date.now() - timestamp > this.cacheConfig.ttl) {
-      this.cache.delete(key);
-      this.cacheTimestamps.delete(key);
-      return null;
-    }
-    
-    this._updateMetrics('hit');
-    return this.cache.get(key);
-  }
-
-  /**
-   * Set cache with TTL
-   */
-  _setCached(key, value, ttl = null) {
-    if (this.cache.size >= this.cacheConfig.maxSize) {
-      this._evictOldestCache();
-    }
-    
-    this.cache.set(key, value);
-    this.cacheTimestamps.set(key, Date.now());
-  }
-
-  /**
-   * Evict oldest cache entries
-   */
-  _evictOldestCache() {
-    let oldestKey = null;
-    let oldestTime = Date.now();
-    
-    for (const [key, timestamp] of this.cacheTimestamps.entries()) {
-      if (timestamp < oldestTime) {
-        oldestTime = timestamp;
-        oldestKey = key;
-      }
-    }
-    
-    if (oldestKey) {
-      this.cache.delete(oldestKey);
-      this.cacheTimestamps.delete(oldestKey);
-    }
-  }
-
-  /**
-   * Invalidate specific cache categories
-   */
-  _invalidateCaches(categories = ['all']) {
-    if (categories.includes('all')) {
-      this.cache.clear();
-      this.cacheTimestamps.clear();
-      return;
-    }
-    
-    categories.forEach(category => {
-      for (const key of this.cache.keys()) {
-        if (key.startsWith(category)) {
-          this.cache.delete(key);
-          this.cacheTimestamps.delete(key);
+        
+        // Coordinate index
+        const coords = this._extractCoordinates(entry);
+        if (coords.isValid) {
+            const coordKey = `${Math.floor(coords.latitude * 10)},${Math.floor(coords.longitude * 10)}`;
+            if (!this.coordinateIndex.has(coordKey)) {
+                this.coordinateIndex.set(coordKey, new Set());
+            }
+            this.coordinateIndex.get(coordKey).add(id);
         }
-      }
-    });
-  }
-
-  /**
-   * Start cache cleanup interval
-   */
-  _startCacheCleanup() {
-    setInterval(() => {
-      const now = Date.now();
-      for (const [key, timestamp] of this.cacheTimestamps.entries()) {
-        if (now - timestamp > this.cacheConfig.ttl) {
-          this.cache.delete(key);
-          this.cacheTimestamps.delete(key);
+        
+        // Importance index
+        if (entry.isImportant) {
+            this.importanceIndex.add(id);
         }
-      }
-    }, this.cacheConfig.cleanupInterval);
-  }
-
-  /**
-   * Update performance metrics
-   */
-  _updateMetrics(type) {
-    if (type === 'hit') {
-      this.metrics.cacheHits++;
-    } else {
-      this.metrics.cacheMisses++;
     }
-  }
 
-  /**
-   * Estimate memory usage
-   */
-  _estimateMemoryUsage() {
-    const logSize = this.navigationLogs.length * 300;
-    const indexSize = this.logsById.size * 50;
-    const cacheSize = this.cache.size * 100;
-    return Math.round((logSize + indexSize + cacheSize) / 1024);
-  }
+    _removeFromIndexes(id, entry) {
+        // Date index
+        const date = this._parseEntryDate(entry);
+        if (date) {
+            const dateKey = this._getDateKey(date);
+            if (this.dateIndex.has(dateKey)) {
+                this.dateIndex.get(dateKey).delete(id);
+                if (this.dateIndex.get(dateKey).size === 0) {
+                    this.dateIndex.delete(dateKey);
+                }
+            }
+        }
+        
+        // Coordinate index
+        const coords = this._extractCoordinates(entry);
+        if (coords.isValid) {
+            const coordKey = `${Math.floor(coords.latitude * 10)},${Math.floor(coords.longitude * 10)}`;
+            if (this.coordinateIndex.has(coordKey)) {
+                this.coordinateIndex.get(coordKey).delete(id);
+                if (this.coordinateIndex.get(coordKey).size === 0) {
+                    this.coordinateIndex.delete(coordKey);
+                }
+            }
+        }
+        
+        // Importance index
+        this.importanceIndex.delete(id);
+    }
+
+    _getDateKey(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    _parseEntryDate(entry) {
+        // Try multiple date field possibilities
+        const dateFields = ['date', 'Date', 'dateTime', 'timestamp', 'logDate', 'entryDate', 'navigationDate'];
+        
+        for (const field of dateFields) {
+            if (entry[field]) {
+                const date = new Date(entry[field]);
+                if (!isNaN(date.getTime())) {
+                    return date;
+                }
+            }
+        }
+        
+        // Try to construct from separate fields
+        if (entry.day && entry.month && entry.year) {
+            const date = new Date(entry.year, entry.month - 1, entry.day);
+            if (!isNaN(date.getTime())) {
+                return date;
+            }
+        }
+        
+        return null;
+    }
+
+    _extractCoordinates(entry) {
+        try {
+            // Try various coordinate field combinations
+            const coordFields = [
+                { lat: 'latitude', lng: 'longitude' },
+                { lat: 'lat', lng: 'lng' },
+                { lat: 'lat', lng: 'lon' },
+                { lat: 'Latitude', lng: 'Longitude' },
+                { lat: 'LAT', lng: 'LON' }
+            ];
+            
+            for (const fields of coordFields) {
+                if (entry[fields.lat] !== undefined && entry[fields.lng] !== undefined) {
+                    const lat = parseFloat(entry[fields.lat]);
+                    const lng = parseFloat(entry[fields.lng]);
+                    
+                    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                        return {
+                            latitude: lat,
+                            longitude: lng,
+                            isValid: true
+                        };
+                    }
+                }
+            }
+            
+            return { isValid: false };
+            
+        } catch (error) {
+            console.error('[DataManager] Error extracting coordinates:', error);
+            return { isValid: false };
+        }
+    }
+
+    // **Enhanced import method with better validation**
+    async importNavigationData(data, format = 'json') {
+        try {
+            if (!Array.isArray(data)) {
+                throw new Error('Data must be an array');
+            }
+            
+            let imported = 0;
+            let errors = 0;
+            const errorDetails = [];
+            
+            for (let i = 0; i < data.length; i++) {
+                try {
+                    const entry = this._validateAndNormalizeEntry(data[i], i);
+                    if (entry) {
+                        this.addNavigationEntry(entry);
+                        imported++;
+                    }
+                } catch (error) {
+                    errors++;
+                    errorDetails.push(`Row ${i + 1}: ${error.message}`);
+                    console.warn(`[DataManager] Import error at row ${i + 1}:`, error);
+                }
+            }
+            
+            // Save to storage
+            if (this.app.storage) {
+                await this.app.storage.saveNavigationData(this.getAllNavigationData());
+            }
+            
+            console.log(`[DataManager] Import complete: ${imported} imported, ${errors} errors`);
+            
+            return {
+                success: true,
+                imported,
+                errors,
+                errorDetails: errorDetails.slice(0, 10) // Limit error details
+            };
+            
+        } catch (error) {
+            console.error('[DataManager] Import failed:', error);
+            return {
+                success: false,
+                error: error.message,
+                imported: 0,
+                errors: data.length
+            };
+        }
+    }
+
+    _validateAndNormalizeEntry(rawEntry, index) {
+        if (!rawEntry || typeof rawEntry !== 'object') {
+            throw new Error('Entry must be an object');
+        }
+        
+        // Create normalized entry
+        const entry = {
+            id: rawEntry.id || this.nextId++,
+            isImportant: Boolean(rawEntry.isImportant || rawEntry.important),
+            remarks: rawEntry.remarks || rawEntry.notes || '',
+            ...rawEntry
+        };
+        
+        // Validate coordinates
+        const coords = this._extractCoordinates(entry);
+        if (!coords.isValid) {
+            throw new Error('Invalid or missing coordinates');
+        }
+        
+        // Validate date
+        const date = this._parseEntryDate(entry);
+        if (!date) {
+            // Try to use index as a fallback date (for test data)
+            entry.date = new Date(Date.now() + (index * 3600000)); // 1 hour apart
+            console.warn(`[DataManager] No valid date found for entry ${index}, using generated date`);
+        }
+        
+        return entry;
+    }
+
+    addNavigationEntry(entry) {
+        try {
+            const id = entry.id || this.nextId++;
+            const normalizedEntry = { ...entry, id };
+            
+            // Add to main storage
+            this.navigationData.set(id, normalizedEntry);
+            
+            // Add to indexes
+            this._addToIndexes(id, normalizedEntry);
+            
+            // Update next ID
+            this.nextId = Math.max(this.nextId, id + 1);
+            
+            console.log(`[DataManager] Added navigation entry: ${id}`);
+            return { success: true, id };
+            
+        } catch (error) {
+            console.error('[DataManager] Failed to add entry:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    updateNavigationEntry(id, updates) {
+        try {
+            if (!this.navigationData.has(id)) {
+                throw new Error(`Entry ${id} not found`);
+            }
+            
+            const currentEntry = this.navigationData.get(id);
+            
+            // Remove from indexes
+            this._removeFromIndexes(id, currentEntry);
+            
+            // Update entry
+            const updatedEntry = { ...currentEntry, ...updates, id };
+            this.navigationData.set(id, updatedEntry);
+            
+            // Re-add to indexes
+            this._addToIndexes(id, updatedEntry);
+            
+            console.log(`[DataManager] Updated navigation entry: ${id}`);
+            return { success: true };
+            
+        } catch (error) {
+            console.error('[DataManager] Failed to update entry:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    deleteNavigationEntry(id) {
+        try {
+            if (!this.navigationData.has(id)) {
+                throw new Error(`Entry ${id} not found`);
+            }
+            
+            const entry = this.navigationData.get(id);
+            
+            // Remove from indexes
+            this._removeFromIndexes(id, entry);
+            
+            // Remove from main storage
+            this.navigationData.delete(id);
+            
+            console.log(`[DataManager] Deleted navigation entry: ${id}`);
+            return { success: true };
+            
+        } catch (error) {
+            console.error('[DataManager] Failed to delete entry:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    toggleEntryImportance(id) {
+        try {
+            if (!this.navigationData.has(id)) {
+                throw new Error(`Entry ${id} not found`);
+            }
+            
+            const entry = this.navigationData.get(id);
+            const wasImportant = entry.isImportant;
+            
+            // Update importance
+            const updates = { isImportant: !wasImportant };
+            const result = this.updateNavigationEntry(id, updates);
+            
+            if (result.success) {
+                console.log(`[DataManager] Toggled importance for entry ${id}: ${!wasImportant}`);
+            }
+            
+            return result;
+            
+        } catch (error) {
+            console.error('[DataManager] Failed to toggle importance:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    // **Enhanced data retrieval methods with date filtering**
+    getAllNavigationData() {
+        return Array.from(this.navigationData.values());
+    }
+
+    getNavigationEntry(id) {
+        return this.navigationData.get(id) || null;
+    }
+
+    getNavigationDataByDateRange(startDate, endDate) {
+        try {
+            const results = [];
+            
+            // Iterate through date index for efficiency
+            for (const [dateKey, entryIds] of this.dateIndex) {
+                const date = new Date(dateKey);
+                if (date >= startDate && date <= endDate) {
+                    for (const id of entryIds) {
+                        const entry = this.navigationData.get(id);
+                        if (entry) {
+                            results.push(entry);
+                        }
+                    }
+                }
+            }
+            
+            // Sort by date
+            results.sort((a, b) => {
+                const dateA = this._parseEntryDate(a);
+                const dateB = this._parseEntryDate(b);
+                return dateA && dateB ? dateA.getTime() - dateB.getTime() : 0;
+            });
+            
+            return results;
+            
+        } catch (error) {
+            console.error('[DataManager] Error filtering by date range:', error);
+            return [];
+        }
+    }
+
+    getImportantEntries() {
+        const results = [];
+        for (const id of this.importanceIndex) {
+            const entry = this.navigationData.get(id);
+            if (entry) {
+                results.push(entry);
+            }
+        }
+        return results;
+    }
+
+    // **New method: Get date range of all data**
+    getDataDateRange() {
+        try {
+            const allDates = [];
+            
+            for (const entry of this.navigationData.values()) {
+                const date = this._parseEntryDate(entry);
+                if (date) {
+                    allDates.push(date);
+                }
+            }
+            
+            if (allDates.length === 0) {
+                return null;
+            }
+            
+            allDates.sort((a, b) => a.getTime() - b.getTime());
+            
+            return {
+                start: allDates[0],
+                end: allDates[allDates.length - 1],
+                totalEntries: allDates.length
+            };
+            
+        } catch (error) {
+            console.error('[DataManager] Error getting date range:', error);
+            return null;
+        }
+    }
+
+    searchNavigationData(query) {
+        try {
+            const results = [];
+            const searchTerm = query.toLowerCase();
+            
+            for (const entry of this.navigationData.values()) {
+                // Search in remarks, course, speed, etc.
+                const searchFields = [
+                    entry.remarks || '',
+                    entry.course || '',
+                    entry.speed || '',
+                    entry.weather || '',
+                    entry.sea || ''
+                ].join(' ').toLowerCase();
+                
+                if (searchFields.includes(searchTerm)) {
+                    results.push(entry);
+                }
+            }
+            
+            return results;
+            
+        } catch (error) {
+            console.error('[DataManager] Search failed:', error);
+            return [];
+        }
+    }
+
+    getStatistics() {
+        try {
+            const total = this.navigationData.size;
+            const important = this.importanceIndex.size;
+            const dateRange = this.getDataDateRange();
+            
+            // Calculate coordinate bounds
+            const coordinates = [];
+            for (const entry of this.navigationData.values()) {
+                const coords = this._extractCoordinates(entry);
+                if (coords.isValid) {
+                    coordinates.push(coords);
+                }
+            }
+            
+            let bounds = null;
+            if (coordinates.length > 0) {
+                bounds = {
+                    north: Math.max(...coordinates.map(c => c.latitude)),
+                    south: Math.min(...coordinates.map(c => c.latitude)),
+                    east: Math.max(...coordinates.map(c => c.longitude)),
+                    west: Math.min(...coordinates.map(c => c.longitude))
+                };
+            }
+            
+            return {
+                totalEntries: total,
+                importantEntries: important,
+                validCoordinates: coordinates.length,
+                dateRange,
+                coordinateBounds: bounds,
+                memoryUsage: this._estimateMemoryUsage()
+            };
+            
+        } catch (error) {
+            console.error('[DataManager] Statistics calculation failed:', error);
+            return {
+                totalEntries: 0,
+                importantEntries: 0,
+                validCoordinates: 0,
+                dateRange: null,
+                coordinateBounds: null,
+                memoryUsage: 0
+            };
+        }
+    }
+
+    _estimateMemoryUsage() {
+        // Rough estimation of memory usage
+        const entrySize = 1000; // Approximate bytes per entry
+        return this.navigationData.size * entrySize;
+    }
+
+    // Clear all data
+    clearAllData() {
+        this.navigationData.clear();
+        this.dateIndex.clear();
+        this.coordinateIndex.clear();
+        this.importanceIndex.clear();
+        this.nextId = 1;
+        
+        console.log('[DataManager] All data cleared');
+        return { success: true };
+    }
 }
 
-// Export for module usage
+// Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = NavigationDataManager;
-} else {
-  window.NavigationDataManager = NavigationDataManager;
+    module.exports = DataManager;
 }

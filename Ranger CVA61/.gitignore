@@ -12,6 +12,11 @@ yarn.lock
 dist/
 build/
 out/
+<<<<<<< HEAD
+=======
+.next/
+.nuxt/
+>>>>>>> Dev
 coverage/
 
 # Environment files
@@ -21,12 +26,30 @@ coverage/
 .env.test.local
 .env.production.local
 
+<<<<<<< HEAD
+=======
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+>>>>>>> Dev
 # Logs
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+<<<<<<< HEAD
+=======
+lerna-debug.log*
+
+# Temporary files
+.tmp/
+temp/
+tmp/
+>>>>>>> Dev
 
 # OS generated files
 .DS_Store
@@ -38,6 +61,7 @@ ehthumbs.db
 Thumbs.db
 Desktop.ini
 
+<<<<<<< HEAD
 # Windows specific
 *.stackdump
 [Dd]esktop.ini
@@ -49,6 +73,8 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
+=======
+>>>>>>> Dev
 # IDE and editor files
 .vscode/
 .idea/
@@ -58,14 +84,67 @@ $RECYCLE.BIN/
 .project
 .settings/
 .classpath
+<<<<<<< HEAD
 *.sublime-project
 *.sublime-workspace
 
+=======
+
+# Editor directories and files
+.atom/
+.brackets.json
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*.un~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Eclipse
+.metadata
+bin/
+tmp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+local.properties
+.settings/
+.loadpath
+.recommenders
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+>>>>>>> Dev
 # Test coverage
 coverage/
 *.lcov
 .nyc_output
 
+<<<<<<< HEAD
 # Cache files
 .eslintcache
 .prettierignore
@@ -123,9 +202,174 @@ screenshots/temp/
 # Analytics and tracking (if added)
 analytics/
 tracking/
+=======
+# ESLint cache
+.eslintcache
+
+# Prettier cache
+.prettierignore
+
+# Stylelint cache
+.stylelintcache
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Local Netlify folder
+.netlify
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Local History for Visual Studio Code
+.history/
+
+# Windows thumbnail cache files
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# Application specific files
+# User data backups (keep navigation logs local)
+backups/
+exports/
+user-data/
+
+# Generated icons (if using automated icon generation)
+icons/generated/
+
+# Screenshots (optional, if you generate them)
+screenshots/
+
+# Analytics and tracking files
+analytics/
+tracking/
+
+# Local configuration overrides
+config.local.js
+settings.local.json
+
+# Cache directories
+.cache/
+cache/
+
+# Local development files
+dev/
+development/
+
+# Temporary build files
+*.tmp.js
+*.tmp.css
+*.tmp.html
+
+# Service worker debug files
+sw-debug.js
+
+# Map files (optional, depending on your build process)
+*.map
+
+# Documentation build output
+docs/build/
+docs/.doctrees/
+
+# Python bytecode (if using Python tools)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Local database files (if you add database support later)
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*.old
+>>>>>>> Dev
 
 # Archive files (unless intentionally committed)
 *.zip
 *.tar.gz
+<<<<<<< HEAD
 *.rar
 *.7z
+=======
+*.tar.bz2
+*.rar
+*.7z
+>>>>>>> Dev
