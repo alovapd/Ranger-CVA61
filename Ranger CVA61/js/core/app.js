@@ -1,523 +1,474 @@
-/**
- * Naval Navigation Deck Log System - Main Application Controller
- * Production Version - Performance monitoring removed
- */
+// js/core/app.js - Enhanced with Auto Date Range Update
 
 class NavalNavigationApp {
-  constructor() {
-    this.config = null;
-    this.storage = null;
-    this.dataManager = null;
-    this.mapping = null;
-    this.forms = null;
-    this.tables = null;
-    this.alerts = null;
-    this.themeManager = null;
-    this.shortcutsManager = null;
-    this.settingsManager = null;
-    this.editingId = null;
-    this.initialized = false;
-  }
-
-  /**
-   * Initialize the application
-   */
-  async init() {
-    try {
-      this.config = window.configManager || this._createFallbackConfig();
-      
-      // Initialize core modules
-      this.dataManager = new NavigationDataManager(this.config);
-      this.storage = new DataStorage(this.config);
-      this.alerts = new AlertManager(this.config);
-      this.mapping = new NavigationMapping(this.config, this.alerts);
-      this.forms = new FormManager(this.config, this.alerts);
-      this.tables = new TableManager(this.config, this.alerts);
-
-      // Initialize enhanced UX modules if available
-      this._initializeEnhancedModules();
-
-      // Load data and setup UI
-      await this._loadApplicationData();
-      this._setupUserInterface();
-      this._setupEventListeners();
-      
-      this.initialized = true;
-      this.alerts.show('Navigation system ready', 'success');
-      
-    } catch (error) {
-      throw new Error('Failed to initialize application: ' + error.message);
-    }
-  }
-
-  /**
-   * Initialize enhanced UX modules (Performance Monitor removed)
-   */
-  _initializeEnhancedModules() {
-    // Theme Manager
-    if (window.ThemeManager) {
-      this.themeManager = new ThemeManager(this.config);
-      window.themeManager = this.themeManager;
-    }
-    
-    // Settings Manager
-    if (window.SettingsManager) {
-      this.settingsManager = new SettingsManager(this.config, this);
-      window.settingsManager = this.settingsManager;
-    }
-    
-    // Keyboard Shortcuts Manager
-    if (window.ShortcutsManager) {
-      this.shortcutsManager = new ShortcutsManager(this.config, this);
-      window.shortcutsManager = this.shortcutsManager;
-    }
-    
-    // Performance Monitor removed - no longer initializing
-  }
-
-  /**
-   * Add a new navigation log entry
-   */
-  addNavigationLog(data) {
-    try {
-      const newLog = this.dataManager.addNavigationLog(data);
-      this.storage.save(this.dataManager.getAllLogs());
-      
-      if (this.config && this.config.updateLastEntry) {
-        this.config.updateLastEntry(newLog.id, 'add');
-      }
-
-      this._refreshUI();
-      
-      if (this._getConfigValue('USER_PREFERENCES.MAP.autoPlotNewEntries', true)) {
-        this._autoPlotAndHighlight(newLog, data.logDate);
-      }
-
-      this.forms.reset();
-      this.alerts.show(`Navigation entry added: ${data.positionTime}`, 'success');
-
-    } catch (error) {
-      this.alerts.showError('Failed to add navigation entry');
-    }
-  }
-
-  /**
-   * Update an existing navigation log entry
-   */
-  updateNavigationLog(id, data) {
-    try {
-      const updatedLog = this.dataManager.updateNavigationLog(id, data);
-      
-      if (!updatedLog) {
-        throw new Error('Navigation log entry not found');
-      }
-
-      this.storage.save(this.dataManager.getAllLogs());
-      
-      if (this.config && this.config.updateLastEntry) {
-        this.config.updateLastEntry(parseInt(id), 'update');
-      }
-
-      this._refreshUI();
-      
-      if (this._getConfigValue('USER_PREFERENCES.MAP.autoPlotNewEntries', true)) {
-        this._autoPlotAndHighlight({ id: parseInt(id) }, data.logDate);
-      }
-
-      this.forms.reset();
-      this.alerts.show(`Navigation entry updated: ${data.positionTime}`, 'success');
-
-    } catch (error) {
-      this.alerts.showError('Failed to update navigation entry');
-    }
-  }
-
-  /**
-   * Delete a navigation log entry
-   */
-  deleteNavigationLog(id) {
-    if (!confirm('Are you sure you want to delete this navigation log entry?')) {
-      return;
-    }
-
-    try {
-      const success = this.dataManager.deleteNavigationLog(id);
-      
-      if (!success) {
-        throw new Error('Navigation log entry not found');
-      }
-
-      this.storage.save(this.dataManager.getAllLogs());
-      this._refreshUI();
-      this.alerts.show('Navigation log entry deleted', 'success');
-
-    } catch (error) {
-      this.alerts.showError('Failed to delete navigation entry');
-    }
-  }
-
-  /**
-   * Toggle importance of a navigation log entry
-   */
-  toggleImportance(id) {
-    try {
-      const log = this.dataManager.getLogById(parseInt(id));
-      if (!log) {
-        this.alerts.showError('Navigation log entry not found');
-        return;
-      }
-
-      // Toggle the importance flag
-      const updatedData = { ...log, isImportant: !log.isImportant };
-      this.dataManager.updateNavigationLog(id, updatedData);
-      
-      this.storage.save(this.dataManager.getAllLogs());
-      this._refreshUI();
-      
-      const status = updatedData.isImportant ? 'marked as important' : 'importance removed';
-      this.alerts.show(`Entry ${status}`, 'success');
-
-    } catch (error) {
-      console.error('Error toggling importance:', error);
-      this.alerts.showError('Failed to toggle entry importance');
-    }
-  }
-
-  /**
-   * Start editing a navigation log entry
-   */
-  editNavigationLog(id) {
-    try {
-      const log = this.dataManager.getLogById(parseInt(id));
-      if (!log) {
-        throw new Error('Navigation log entry not found');
-      }
-
-      this.editingId = id;
-      this.forms.populateForEdit(log);
-
-    } catch (error) {
-      this.alerts.showError('Failed to edit navigation entry');
-    }
-  }
-
-  /**
-   * Cancel editing mode
-   */
-  cancelEdit() {
-    this.editingId = null;
-    this.forms.reset();
-  }
-
-  /**
-   * Export data to JSON
-   */
-  exportToJSON() {
-    try {
-      const navigationLogs = this.dataManager.getAllLogs();
-      this.storage.exportJSON(navigationLogs);
-      
-      const count = navigationLogs.length;
-      const message = `${count} ${count === 1 ? 'entry' : 'entries'} exported to JSON`;
-      this.alerts.show(message, 'success');
-      
-    } catch (error) {
-      this.alerts.showError('Export failed');
-    }
-  }
-
-  /**
-   * Export data to CSV
-   */
-  exportToCSV() {
-    try {
-      const navigationLogs = this.dataManager.getAllLogs();
-      this.storage.exportCSV(navigationLogs);
-      
-      const count = navigationLogs.length;
-      const message = `${count} ${count === 1 ? 'entry' : 'entries'} exported to CSV`;
-      this.alerts.show(message, 'success');
-      
-    } catch (error) {
-      this.alerts.showError('CSV export failed');
-    }
-  }
-
-  /**
-   * Import data from JSON
-   */
-  importFromJSON() {
-    try {
-      this.storage.importFromJSON((importedLogs, isReplace) => {
-        if (isReplace) {
-          this.dataManager.replaceAllLogs(importedLogs);
-        } else {
-          const maxId = this.dataManager.getAllLogs().length > 0 ? 
-            Math.max(...this.dataManager.getAllLogs().map(l => l.id)) : 0;
-          const newLogs = importedLogs.map((log, i) => ({ ...log, id: maxId + i + 1 }));
-          this.dataManager.bulkAddLogs(newLogs);
-        }
+    constructor() {
+        this.config = null;
+        this.dataManager = null;
+        this.storage = null;
+        this.settings = null;
+        this.alerts = null;
+        this.forms = null;
+        this.tables = null;
+        this.themes = null;
+        this.shortcuts = null;
+        this.mapping = null;
         
-        this.storage.save(this.dataManager.getAllLogs());
+        this.isInitialized = false;
+    }
+
+    async initialize() {
+        try {
+            console.log('[NavalNavigationApp] Starting initialization...');
+            
+            // Initialize configuration first
+            if (typeof ConfigManager !== 'undefined') {
+                this.config = new ConfigManager();
+            }
+            
+            // Initialize core modules
+            await this._initializeCoreModules();
+            
+            // Initialize UI modules
+            await this._initializeUIModules();
+            
+            // Initialize navigation modules
+            await this._initializeNavigationModules();
+            
+            // Setup global event listeners
+            this._setupGlobalEventListeners();
+            
+            // Mark as initialized
+            this.isInitialized = true;
+            
+            console.log('[NavalNavigationApp] Initialization complete');
+            this.alerts?.show('Naval Navigation System Ready', 'success');
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Initialization failed:', error);
+            this._showError('Failed to initialize application');
+        }
+    }
+
+    async _initializeCoreModules() {
+        try {
+            // Data Manager
+            if (typeof DataManager !== 'undefined') {
+                this.dataManager = new DataManager(this);
+                await this.dataManager.initialize();
+            }
+            
+            // Storage Manager
+            if (typeof DataStorage !== 'undefined') {
+                this.storage = new DataStorage(this);
+                await this.storage.initialize();
+            }
+            
+            // Settings Manager
+            if (typeof SettingsManager !== 'undefined') {
+                this.settings = new SettingsManager(this);
+                await this.settings.initialize();
+            }
+            
+            console.log('[NavalNavigationApp] Core modules initialized');
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Core module initialization failed:', error);
+            throw error;
+        }
+    }
+
+    async _initializeUIModules() {
+        try {
+            // Alert Manager
+            if (typeof AlertManager !== 'undefined') {
+                this.alerts = new AlertManager(this);
+                this.alerts.initialize();
+            }
+            
+            // Form Manager
+            if (typeof FormManager !== 'undefined') {
+                this.forms = new FormManager(this);
+                this.forms.initialize();
+            }
+            
+            // Table Manager
+            if (typeof TableManager !== 'undefined') {
+                this.tables = new TableManager(this);
+                this.tables.initialize();
+            }
+            
+            // Theme Manager
+            if (typeof ThemeManager !== 'undefined') {
+                this.themes = new ThemeManager(this);
+                this.themes.initialize();
+            }
+            
+            // Keyboard Shortcuts
+            if (typeof ShortcutManager !== 'undefined') {
+                this.shortcuts = new ShortcutManager(this);
+                this.shortcuts.initialize();
+            }
+            
+            console.log('[NavalNavigationApp] UI modules initialized');
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] UI module initialization failed:', error);
+            throw error;
+        }
+    }
+
+    async _initializeNavigationModules() {
+        try {
+            // Navigation Mapping
+            if (typeof NavigationMapping !== 'undefined') {
+                this.mapping = new NavigationMapping(this);
+                this.mapping.initialize();
+            }
+            
+            console.log('[NavalNavigationApp] Navigation modules initialized');
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Navigation module initialization failed:', error);
+            throw error;
+        }
+    }
+
+    _setupGlobalEventListeners() {
+        // File import events
+        document.addEventListener('dataImported', (event) => {
+            this._onDataImported(event.detail);
+        });
+        
+        // Application events
+        document.addEventListener('settingsChanged', (event) => {
+            this._onSettingsChanged(event.detail);
+        });
+        
+        // Navigation events
+        document.addEventListener('navigationEntryAdded', (event) => {
+            this._onNavigationEntryAdded(event.detail);
+        });
+    }
+
+    // **KEY FIX: Enhanced data import handling with auto date range update**
+    async importNavigationData(data, format = 'json') {
+        try {
+            console.log(`[NavalNavigationApp] Importing ${data.length} navigation entries...`);
+            
+            // Validate data format
+            if (!Array.isArray(data)) {
+                throw new Error('Data must be an array of navigation entries');
+            }
+            
+            // Import data through data manager
+            const result = await this.dataManager.importNavigationData(data, format);
+            
+            if (result.success) {
+                // Refresh UI
+                this._refreshUI();
+                
+                // **NEW: Update mapping date range automatically**
+                if (this.mapping) {
+                    this.mapping.onDataImported();
+                }
+                
+                // Show success message
+                this.alerts?.show(
+                    `Successfully imported ${result.imported} navigation entries` + 
+                    (result.errors > 0 ? ` (${result.errors} errors)` : ''), 
+                    'success'
+                );
+                
+                // Dispatch event for other modules
+                document.dispatchEvent(new CustomEvent('dataImported', {
+                    detail: { 
+                        data: data,
+                        format: format,
+                        result: result
+                    }
+                }));
+                
+                console.log('[NavalNavigationApp] Data import completed successfully');
+                return result;
+                
+            } else {
+                throw new Error(result.error || 'Import failed');
+            }
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Data import failed:', error);
+            this.alerts?.show(`Import failed: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    // **Enhanced file import with better error handling**
+    async importFromFile(file) {
+        try {
+            if (!file) {
+                throw new Error('No file provided');
+            }
+            
+            console.log(`[NavalNavigationApp] Importing from file: ${file.name}`);
+            
+            // Determine file format
+            const format = this._getFileFormat(file.name);
+            
+            // Read file content
+            const content = await this._readFile(file);
+            
+            // Parse content based on format
+            let data;
+            switch (format) {
+                case 'json':
+                    data = JSON.parse(content);
+                    break;
+                case 'csv':
+                    data = await this._parseCSV(content);
+                    break;
+                default:
+                    throw new Error(`Unsupported file format: ${format}`);
+            }
+            
+            // Import the parsed data
+            return await this.importNavigationData(data, format);
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] File import failed:', error);
+            this.alerts?.show(`File import failed: ${error.message}`, 'error');
+            throw error;
+        }
+    }
+
+    _getFileFormat(filename) {
+        const extension = filename.toLowerCase().split('.').pop();
+        switch (extension) {
+            case 'json':
+                return 'json';
+            case 'csv':
+                return 'csv';
+            default:
+                return 'unknown';
+        }
+    }
+
+    _readFile(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = (e) => reject(new Error('File read error'));
+            reader.readAsText(file);
+        });
+    }
+
+    async _parseCSV(content) {
+        // Basic CSV parsing - you might want to enhance this
+        const lines = content.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim());
+        
+        return lines.slice(1)
+            .filter(line => line.trim().length > 0)
+            .map(line => {
+                const values = line.split(',');
+                const entry = {};
+                headers.forEach((header, index) => {
+                    entry[header] = values[index] ? values[index].trim() : '';
+                });
+                return entry;
+            });
+    }
+
+    _onDataImported(detail) {
+        console.log('[NavalNavigationApp] Data imported event received:', detail);
+        
+        // Additional processing after data import
+        if (this.settings) {
+            this.settings.updateDataStats();
+        }
+    }
+
+    _onSettingsChanged(detail) {
+        console.log('[NavalNavigationApp] Settings changed:', detail);
         this._refreshUI();
-        this.alerts.show(`${importedLogs.length} entries imported`, 'success');
-      });
-    } catch (error) {
-      this.alerts.showError('Import failed');
-    }
-  }
-
-  /**
-   * Plot navigation track on map
-   */
-  plotNavigationTrack() {
-    try {
-      const startDate = document.getElementById('startDate')?.value;
-      const endDate = document.getElementById('endDate')?.value;
-      const showLine = this._getConfigValue('USER_PREFERENCES.MAP.showTrackLine', true);
-      const showNumbers = this._getConfigValue('USER_PREFERENCES.MAP.showFixNumbers', true);
-
-      let logsToPlot;
-      
-      if (startDate && endDate) {
-        logsToPlot = this.dataManager.getLogsByDateRange(startDate, endDate);
-      } else {
-        logsToPlot = this.dataManager.getChronologicalLogs();
-      }
-
-      this.mapping.plotTrack(logsToPlot, {
-        startDate,
-        endDate,
-        showLine,
-        showNumbers
-      });
-      
-      if (logsToPlot.length === 0) {
-        this.alerts.show('No entries to plot in selected date range', 'warning');
-      } else {
-        this.alerts.show(`${logsToPlot.length} plots rendered`, 'success');
-      }
-
-    } catch (error) {
-      this.alerts.showError('Failed to plot navigation track');
-    }
-  }
-
-  /**
-   * Clear map
-   */
-  clearMap() {
-    this.mapping.clearMap();
-    this.alerts.show('Map cleared', 'info');
-  }
-
-  /**
-   * Find and highlight plot on map
-   */
-  findPlotOnMap() {
-    const totalLogs = this.dataManager.getAllLogs().length;
-    const plotNumber = prompt(`Enter plot number to find (1-${totalLogs}):`);
-    if (!plotNumber) return;
-
-    try {
-      this.mapping.findAndHighlightPlot(parseInt(plotNumber));
-    } catch (error) {
-      this.alerts.showError('Failed to find plot');
-    }
-  }
-
-  // Private methods
-
-  /**
-   * Load application data from storage
-   */
-  async _loadApplicationData() {
-    try {
-      const savedLogs = await this.storage.load();
-      
-      if (savedLogs.length === 0) {
-        const sampleData = this._createSampleData();
-        this.dataManager.bulkAddLogs(sampleData);
-        this.storage.save(this.dataManager.getAllLogs());
-      } else {
-        this.dataManager.bulkAddLogs(savedLogs);
-      }
-      
-    } catch (error) {
-      const sampleData = this._createSampleData();
-      this.dataManager.bulkAddLogs(sampleData);
-    }
-  }
-
-  /**
-   * Setup user interface
-   */
-  _setupUserInterface() {
-    const versionElement = document.getElementById('appVersion');
-    if (versionElement) {
-      versionElement.textContent = this._getConfigValue('APP.VERSION', 'v0.4.3');
     }
 
-    this.mapping.init();
-    this.forms.init(this);
-    this.tables.init();
-    this._refreshUI();
-    
-    // Apply saved theme
-    const savedTheme = this._getConfigValue('USER_PREFERENCES.UI.theme', 'default');
-    if (this.themeManager && savedTheme !== 'default') {
-      setTimeout(() => this.themeManager.setTheme(savedTheme), 100);
+    _onNavigationEntryAdded(detail) {
+        console.log('[NavalNavigationApp] Navigation entry added:', detail);
+        this._refreshUI();
     }
-  }
 
-  /**
-   * Setup event listeners
-   */
-  _setupEventListeners() {
-    document.getElementById('logForm')?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const formData = this.forms.getFormData();
-      
-      if (this.editingId) {
-        this.updateNavigationLog(this.editingId, formData);
-      } else {
-        this.addNavigationLog(formData);
-      }
-    });
-
-    window.addEventListener('resize', () => {
-      this.mapping.handleResize();
-    });
-
-    window.app = this;
-  }
-
-  /**
-   * Refresh all UI components
-   */
-  _refreshUI() {
-    const allLogs = this.dataManager.getAllLogs();
-    this.tables.update(allLogs);
-    this.forms.updateLastEntryDisplay(allLogs);
-    this.forms.setDefaultDateRange(allLogs);
-  }
-
-  /**
-   * Auto-plot and highlight new entry
-   */
-  _autoPlotAndHighlight(entry, logDate) {
-    this.forms.ensureDateRangeCovers(logDate);
-    this.plotNavigationTrack();
-    
-    if (this._getConfigValue('USER_PREFERENCES.MAP.autoZoomToNewEntry', true)) {
-      setTimeout(() => this.mapping.highlightMarker(entry.id), 150);
+    // **Enhanced UI refresh method**
+    _refreshUI() {
+        try {
+            // Refresh table
+            if (this.tables) {
+                this.tables.refresh();
+            }
+            
+            // Update statistics
+            if (this.dataManager) {
+                this._updateDataStatistics();
+            }
+            
+            // Refresh mapping if track is currently plotted
+            if (this.mapping && this.mapping.getCurrentTrack().length > 0) {
+                // Re-plot with current date range
+                this.mapping.plotTrack();
+            }
+            
+            console.log('[NavalNavigationApp] UI refreshed');
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] UI refresh failed:', error);
+        }
     }
-  }
 
-  /**
-   * Get configuration value with fallback
-   */
-  _getConfigValue(path, defaultValue) {
-    if (this.config && this.config.get) {
-      try {
-        const value = this.config.get(path);
-        return value !== undefined ? value : defaultValue;
-      } catch (e) {
-        return defaultValue;
-      }
+    _updateDataStatistics() {
+        try {
+            const stats = this.dataManager.getStatistics();
+            
+            // Update any statistics displays
+            const statsElements = document.querySelectorAll('[data-stat]');
+            statsElements.forEach(element => {
+                const statType = element.getAttribute('data-stat');
+                if (stats[statType] !== undefined) {
+                    element.textContent = stats[statType];
+                }
+            });
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Statistics update failed:', error);
+        }
     }
-    return defaultValue;
-  }
 
-  /**
-   * Create fallback config if none available
-   */
-  _createFallbackConfig() {
-    return {
-      get: (path) => {
-        const defaults = {
-          'APP.VERSION': 'v0.4.3',
-          'APP.VESSEL_NAME': 'USS RANGER',
-          'APP.VESSEL_TYPE': 'CVA-61',
-          'USER_PREFERENCES.MAP.autoPlotNewEntries': true,
-          'USER_PREFERENCES.MAP.autoZoomToNewEntry': true,
-          'USER_PREFERENCES.MAP.showTrackLine': true,
-          'USER_PREFERENCES.MAP.showFixNumbers': true,
-          'USER_PREFERENCES.UI.showSuccessMessages': true,
-          'USER_PREFERENCES.UI.theme': 'default'
-        };
-        return defaults[path];
-      },
-      updateLastEntry: () => {},
-      getLastEntryId: () => null,
-      set: () => {}
-    };
-  }
+    // Global function for table button interactions
+    toggleImportance(id) {
+        try {
+            console.log(`[NavalNavigationApp] Toggling importance for entry: ${id}`);
+            
+            if (this.dataManager) {
+                const result = this.dataManager.toggleEntryImportance(id);
+                if (result.success) {
+                    this._refreshUI();
+                    console.log(`[NavalNavigationApp] Entry ${id} importance toggled`);
+                } else {
+                    console.error('[NavalNavigationApp] Failed to toggle importance:', result.error);
+                }
+            }
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Toggle importance failed:', error);
+        }
+    }
 
-  /**
-   * Create sample navigation data
-   */
-  _createSampleData() {
-    const now = Date.now();
-    return [
-      {
-        id: 1,
-        entryTimestamp: now - 300000,
-        vesselName: this._getConfigValue('APP.VESSEL_NAME', 'USS RANGER'),
-        vesselType: this._getConfigValue('APP.VESSEL_TYPE', 'CVA-61'),
-        zoneDescription: 'UTC',
-        logDate: '1970-10-01',
-        dayOfWeek: 'THURSDAY',
-        passageInfo: 'NAVIGATION LOG ENTRY',
-        positionTime: '08:00',
-        latitude: "20°56.1'N",
-        longitude: "158°03.0'W",
-        fixMethod: '2',
-        remarks: 'Departed NAS Alameda, course set for Hawaiian operating area',
-        associatedUrl: '',
-        isImportant: false
-      },
-      {
-        id: 2,
-        entryTimestamp: now - 240000,
-        vesselName: this._getConfigValue('APP.VESSEL_NAME', 'USS RANGER'),
-        vesselType: this._getConfigValue('APP.VESSEL_TYPE', 'CVA-61'),
-        zoneDescription: 'UTC',
-        logDate: '1970-10-01',
-        dayOfWeek: 'THURSDAY',
-        passageInfo: 'NAVIGATION LOG ENTRY',
-        positionTime: '12:00',
-        latitude: "20°53'N",
-        longitude: "158°48.2'W",
-        fixMethod: '2',
-        remarks: 'Steady course, maintaining speed',
-        associatedUrl: '',
-        isImportant: false
-      },
-      {
-        id: 3,
-        entryTimestamp: now - 180000,
-        vesselName: this._getConfigValue('APP.VESSEL_NAME', 'USS RANGER'),
-        vesselType: this._getConfigValue('APP.VESSEL_TYPE', 'CVA-61'),
-        zoneDescription: 'UTC',
-        logDate: '1970-10-01',
-        dayOfWeek: 'THURSDAY',
-        passageInfo: 'NAVIGATION LOG ENTRY',
-        positionTime: '20:00',
-        latitude: "20°42.4'N",
-        longitude: "159°13.1'W",
-        fixMethod: '2',
-        remarks: 'Position confirmed, on track to operating area',
-        associatedUrl: '',
-        isImportant: false
-      }
-    ];
-  }
+    editEntry(id) {
+        try {
+            console.log(`[NavalNavigationApp] Editing entry: ${id}`);
+            
+            if (this.forms) {
+                this.forms.editNavigationEntry(id);
+            }
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Edit entry failed:', error);
+        }
+    }
+
+    deleteEntry(id) {
+        try {
+            console.log(`[NavalNavigationApp] Deleting entry: ${id}`);
+            
+            if (this.dataManager) {
+                const result = this.dataManager.deleteNavigationEntry(id);
+                if (result.success) {
+                    this._refreshUI();
+                    this.alerts?.show('Navigation entry deleted', 'success');
+                } else {
+                    this.alerts?.show('Failed to delete entry', 'error');
+                }
+            }
+            
+        } catch (error) {
+            console.error('[NavalNavigationApp] Delete entry failed:', error);
+        }
+    }
+
+    // **New method: Force update date range**
+    updatePlotDateRange() {
+        if (this.mapping) {
+            this.mapping.updateDateRangeFromData();
+        }
+    }
+
+    // Public API methods
+    getNavigationData() {
+        return this.dataManager ? this.dataManager.getAllNavigationData() : [];
+    }
+
+    getSettings() {
+        return this.settings ? this.settings.getAll() : {};
+    }
+
+    exportData(format = 'json') {
+        if (this.storage) {
+            return this.storage.exportData(format);
+        }
+        return null;
+    }
+
+    _showError(message) {
+        if (this.alerts) {
+            this.alerts.show(message, 'error');
+        } else {
+            console.error(message);
+            alert(message);
+        }
+    }
 }
 
-// Export for module usage
+// Global app instance
+let app = null;
+
+// Global functions for table interactions (required for HTML onclick handlers)
+function toggleImportance(id) {
+    if (app) {
+        app.toggleImportance(id);
+    } else {
+        console.error('App not initialized');
+    }
+}
+
+function editEntry(id) {
+    if (app) {
+        app.editEntry(id);
+    } else {
+        console.error('App not initialized');
+    }
+}
+
+function deleteEntry(id) {
+    if (app) {
+        app.deleteEntry(id);
+    } else {
+        console.error('App not initialized');
+    }
+}
+
+// Initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        app = new NavalNavigationApp();
+        await app.initialize();
+        
+        // Make app globally accessible for debugging
+        window.navalApp = app;
+        
+    } catch (error) {
+        console.error('Failed to initialize Naval Navigation App:', error);
+    }
+});
+
+// Export for module systems
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = NavalNavigationApp;
-} else {
-  window.NavalNavigationApp = NavalNavigationApp;
+    module.exports = NavalNavigationApp;
 }
