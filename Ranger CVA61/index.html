@@ -5,14 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Naval Navigation Deck Log System - USS Ranger CVA-61</title>
     
+    <!-- CRITICAL: Base href for GitHub Pages path resolution -->
+    <script>
+        // Dynamically set base href for GitHub Pages compatibility
+        (function() {
+            const path = window.location.pathname;
+            let basePath = '';
+            
+            // Check if we're on GitHub Pages (contains github.io)
+            if (window.location.hostname.includes('github.io')) {
+                // Extract repository name from path for GitHub Pages
+                const pathParts = path.split('/').filter(part => part.length > 0);
+                if (pathParts.length > 0) {
+                    basePath = '/' + pathParts[0] + '/';
+                }
+            }
+            
+            // Set base href
+            if (basePath) {
+                document.write('<base href="' + basePath + '">');
+                console.log('[GitHub Pages] Base path set to:', basePath);
+            } else {
+                console.log('[Local] No base path needed');
+            }
+        })();
+    </script>
+    
     <!-- PWA Manifest -->
-    <link rel="manifest" href="./manifest.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1f2937">
     
     <!-- Favicon and Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
     
     <!-- Meta Tags for SEO and Social -->
     <meta name="description" content="Professional maritime navigation logging system for USS Ranger CVA-61, featuring interactive mapping, coordinate tracking, and historical data visualization.">
@@ -23,7 +49,7 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="Naval Navigation Deck Log System">
     <meta property="og:description" content="Professional maritime navigation logging system for USS Ranger CVA-61">
-    <meta property="og:image" content="./assets/og-image.png">
+    <meta property="og:image" content="assets/og-image.png">
     
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
@@ -31,7 +57,7 @@
     <meta property="twitter:description" content="Professional maritime navigation logging system for USS Ranger CVA-61">
     
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="./css/styles.css">
+    <link rel="stylesheet" href="css/styles.css">
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
@@ -48,6 +74,9 @@
             <div class="loading-progress">
                 <div class="loading-bar"></div>
             </div>
+            <div class="loading-debug">
+                <small id="debug-info">Checking system paths...</small>
+            </div>
         </div>
     </div>
 
@@ -56,6 +85,12 @@
         <div class="error-content">
             <h2>🚨 System Error</h2>
             <p id="error-message">Navigation system failed to initialize. Please check console for details.</p>
+            <div class="error-details">
+                <h4>Debug Information:</h4>
+                <p><strong>URL:</strong> <span id="debug-url"></span></p>
+                <p><strong>Base Path:</strong> <span id="debug-base"></span></p>
+                <p><strong>Hostname:</strong> <span id="debug-hostname"></span></p>
+            </div>
             <button onclick="location.reload()" class="btn btn-primary">Reload System</button>
         </div>
     </div>
@@ -205,16 +240,49 @@
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
             crossorigin=""></script>
 
-    <!-- Application JavaScript - NO MODULES, TRADITIONAL LOADING -->
+    <!-- Application JavaScript - Path-aware loading -->
     <script>
-        // Global error handler
+        // Global configuration
+        window.NavalApp = window.NavalApp || {};
+        
+        // Debug info for troubleshooting
+        function updateDebugInfo() {
+            const debugInfo = document.getElementById('debug-info');
+            const baseElement = document.querySelector('base');
+            const basePath = baseElement ? baseElement.href : 'none';
+            
+            if (debugInfo) {
+                debugInfo.textContent = `Base: ${basePath} | Host: ${window.location.hostname}`;
+            }
+            
+            // Update error display debug info
+            document.getElementById('debug-url').textContent = window.location.href;
+            document.getElementById('debug-base').textContent = basePath;
+            document.getElementById('debug-hostname').textContent = window.location.hostname;
+        }
+        
+        // Global error handler with better debugging
         window.addEventListener('error', function(e) {
             console.error('Global error:', e);
-            showInitializationError('JavaScript error: ' + e.message);
+            console.error('Error details:', {
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno,
+                error: e.error
+            });
+            showInitializationError('JavaScript error: ' + e.message + ' (File: ' + e.filename + ')');
         });
 
-        // Show initialization error
+        // Enhanced error handler for network errors (404s)
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e);
+            showInitializationError('Network error: ' + e.reason);
+        });
+
+        // Show initialization error with debug info
         function showInitializationError(message) {
+            updateDebugInfo();
             document.getElementById('loading-screen').style.display = 'none';
             document.getElementById('app').style.display = 'none';
             document.getElementById('error-message').textContent = message;
@@ -243,76 +311,112 @@
                     loadingText.textContent = message;
                 }
             }
+            updateDebugInfo();
         }
 
-        // Start loading
-        updateProgress(10, 'Loading configuration...');
-    </script>
+        // Helper function to load script with error handling
+        function loadScript(src, description) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = () => {
+                    console.log(`✅ Loaded: ${description} (${src})`);
+                    resolve();
+                };
+                script.onerror = (e) => {
+                    console.error(`❌ Failed to load: ${description} (${src})`);
+                    console.error('Script error details:', e);
+                    reject(new Error(`Failed to load ${description}: ${src}`));
+                };
+                document.head.appendChild(script);
+            });
+        }
 
-    <!-- Load Configuration First -->
-    <script src="./js/config.js"></script>
-    <script>updateProgress(20, 'Loading core modules...');</script>
+        // Sequential script loading with better error handling
+        async function loadApplicationScripts() {
+            try {
+                updateProgress(10, 'Loading configuration...');
+                await loadScript('js/config.js', 'Configuration');
 
-    <!-- Core Modules -->
-    <script src="./js/core/data-manager.js"></script>
-    <script src="./js/core/storage.js"></script>
-    <script src="./js/core/settings.js"></script>
-    <script>updateProgress(40, 'Loading UI components...');</script>
+                updateProgress(20, 'Loading core modules...');
+                await loadScript('js/core/data-manager.js', 'Data Manager');
+                await loadScript('js/core/storage.js', 'Storage Manager');
+                await loadScript('js/core/settings.js', 'Settings Manager');
 
-    <!-- UI Modules -->
-    <script src="./js/ui/alerts.js"></script>
-    <script src="./js/ui/forms.js"></script>
-    <script src="./js/ui/tables.js"></script>
-    <script src="./js/ui/themes.js"></script>
-    <script src="./js/ui/shortcuts.js"></script>
-    <script>updateProgress(60, 'Loading navigation systems...');</script>
+                updateProgress(40, 'Loading UI components...');
+                await loadScript('js/ui/alerts.js', 'Alert Manager');
+                await loadScript('js/ui/forms.js', 'Form Manager');
+                await loadScript('js/ui/tables.js', 'Table Manager');
+                await loadScript('js/ui/themes.js', 'Theme Manager');
+                await loadScript('js/ui/shortcuts.js', 'Shortcut Manager');
 
-    <!-- Navigation Modules -->
-    <script src="./js/navigation/coordinates.js"></script>
-    <script src="./js/navigation/distance.js"></script>
-    <script src="./js/navigation/mapping.js"></script>
-    <script>updateProgress(80, 'Loading application data...');</script>
+                updateProgress(60, 'Loading navigation systems...');
+                await loadScript('js/navigation/coordinates.js', 'Coordinate System');
+                await loadScript('js/navigation/distance.js', 'Distance Calculator');
+                await loadScript('js/navigation/mapping.js', 'Navigation Mapping');
 
-    <!-- Data -->
-    <script src="./data/landmass.js"></script>
-    <script>updateProgress(90, 'Initializing application...');</script>
+                updateProgress(80, 'Loading application data...');
+                await loadScript('data/landmass.js', 'Landmass Data');
 
-    <!-- Main Application (Load Last) -->
-    <script src="./js/core/app.js"></script>
+                updateProgress(90, 'Initializing application...');
+                await loadScript('js/core/app.js', 'Main Application');
 
-    <!-- Application Initialization -->
-    <script>
-        // Wait for DOM and all scripts to load
-        document.addEventListener('DOMContentLoaded', function() {
-            updateProgress(95, 'Starting navigation system...');
-            
-            // Small delay to ensure everything is loaded
-            setTimeout(async function() {
-                try {
-                    // Initialize the application
-                    if (typeof NavalNavigationApp === 'undefined') {
-                        throw new Error('NavalNavigationApp class not found');
+                updateProgress(95, 'Starting navigation system...');
+                
+                // Initialize the application
+                setTimeout(async function() {
+                    try {
+                        if (typeof NavalNavigationApp === 'undefined') {
+                            throw new Error('NavalNavigationApp class not found - check that all scripts loaded correctly');
+                        }
+                        
+                        // Create and initialize app
+                        window.navalApp = new NavalNavigationApp();
+                        await window.navalApp.initialize();
+                        
+                        updateProgress(100, 'System ready!');
+                        setTimeout(showApplication, 500);
+                        
+                    } catch (error) {
+                        console.error('Application initialization failed:', error);
+                        showInitializationError('Failed to initialize: ' + error.message);
                     }
-                    
-                    updateProgress(100, 'System ready!');
-                    
-                    // Show application
-                    setTimeout(showApplication, 500);
-                    
-                } catch (error) {
-                    console.error('Application initialization failed:', error);
-                    showInitializationError('Failed to initialize: ' + error.message);
-                }
-            }, 100);
+                }, 200);
+
+            } catch (error) {
+                console.error('Script loading failed:', error);
+                showInitializationError('Failed to load application scripts: ' + error.message);
+            }
+        }
+
+        // Start loading when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚢 Naval Navigation System - Starting initialization...');
+            console.log('URL:', window.location.href);
+            console.log('Hostname:', window.location.hostname);
+            console.log('Pathname:', window.location.pathname);
+            
+            const baseElement = document.querySelector('base');
+            if (baseElement) {
+                console.log('Base href:', baseElement.href);
+            }
+            
+            // Start script loading
+            loadApplicationScripts();
         });
 
-        // Service Worker Registration (PWA)
+        // Service Worker Registration (PWA) with path awareness
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                const swPath = window.location.pathname.endsWith('/') 
-                    ? window.location.pathname + 'service-worker.js'
-                    : window.location.pathname + '/service-worker.js';
-                    
+                // Determine service worker path based on base href
+                const baseElement = document.querySelector('base');
+                let swPath = 'service-worker.js';
+                
+                if (baseElement) {
+                    const basePath = new URL(baseElement.href).pathname;
+                    swPath = basePath + 'service-worker.js';
+                }
+                
                 navigator.serviceWorker.register(swPath)
                     .then(function(registration) {
                         console.log('SW registered: ', registration);
@@ -327,14 +431,17 @@
     <!-- Add Clear Track Button Functionality -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const clearTrackBtn = document.getElementById('clear-track-btn');
-            if (clearTrackBtn) {
-                clearTrackBtn.addEventListener('click', function() {
-                    if (window.navalApp && window.navalApp.mapping) {
-                        window.navalApp.mapping.clearTrack();
-                    }
-                });
-            }
+            // Small delay to ensure app is initialized
+            setTimeout(function() {
+                const clearTrackBtn = document.getElementById('clear-track-btn');
+                if (clearTrackBtn) {
+                    clearTrackBtn.addEventListener('click', function() {
+                        if (window.navalApp && window.navalApp.mapping) {
+                            window.navalApp.mapping.clearTrack();
+                        }
+                    });
+                }
+            }, 1000);
         });
     </script>
 </body>
